@@ -1,0 +1,12 @@
+{
+    "name": "revolut-project",
+    "version": "1.0.0",
+    "description": "Your project description",
+    "author": "mohammed",
+    "license": "MIT",
+    "dependencies": {
+      "axios": "^0.21.1",
+      "dotenv": "^8.2.0"
+    }
+  }
+  
