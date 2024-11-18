@@ -124,6 +124,136 @@ function generateJWSSignature(payload) {
 // Run the function
 //getAccessToken();
 
+//function to generate JWT for consent authorization
+function generateAuthorizationJWT(consentId) {
+    try {
+        const header = {
+            alg: "PS256",
+            kid: process.env.KID
+        };
+
+        const payload = {
+            response_type: "code id_token",
+            client_id: process.env.CLIENT_ID,
+            redirect_uri: process.env.REDIRECT_URI,
+            scope: "payments",
+            state: crypto.randomUUID(),
+            claims: {
+                id_token: {
+                    openbanking_intent_id: {
+                        value: consentId
+                    }
+                }
+            }
+        };
+
+        // Base64URL encode header and payload
+        const encodedHeader = Buffer.from(JSON.stringify(header))
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+
+        const encodedPayload = Buffer.from(JSON.stringify(payload))
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+
+        const dataToSign = `${encodedHeader}.${encodedPayload}`;
+        
+        const privateKey = fs.readFileSync('./keys/private.key');
+        const signature = crypto.sign(
+            'sha256',
+            Buffer.from(dataToSign),
+            {
+                key: privateKey,
+                padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+                saltLength: 32
+            }
+        );
+
+        const encodedSignature = signature
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+
+        return {
+            jwt: `${dataToSign}.${encodedSignature}`,
+            state: payload.state
+        };
+    } catch (error) {
+        console.error('Error generating authorization JWT:', error);
+        throw error;
+    }
+}
+
+// Function to create payment payload with consent ID
+function createPaymentPayload(paymentData, consentId) {
+    return {
+        Data: {
+            ConsentId: consentId,
+            ...paymentData.Data
+        },
+        Risk: paymentData.Risk
+    };
+}
+
+async function initiateDomesticPayment(paymentData, consentId, accessToken) {
+    // Generate JWS signature for the payment payload
+    //const jwsSignature = generateJWSSignature(paymentPayload);
+    const paymentPayload = createPaymentPayload(paymentData, consentId);
+    // Generate new JWS signature for payment payload
+    const jwsSignature = generateJWSSignature(paymentPayload);
+
+    try {
+        const response = await axios.post(
+            'https://sandbox-oba.revolut.com/domestic-payments',
+            paymentPayload,
+            {
+                headers: {
+                    'x-fapi-financial-id': process.env.FINANCIAL_ID,
+                    'Content-Type': 'application/json',
+                    'x-idempotency-key': crypto.randomUUID(),
+                    'Authorization': `Bearer ${accessToken}`,
+                    'x-jws-signature': jwsSignature
+                },
+                httpsAgent: new https.Agent({
+                    cert: fs.readFileSync('./keys/transport.pem'),
+                    key: fs.readFileSync('./keys/private.key'),
+                    rejectUnauthorized: false
+                })
+            }
+        );
+
+        console.log('\n=== Payment Initiation Response ===');
+        console.log(JSON.stringify(response.data, null, 2));
+        console.log('================================\n');
+
+        return response.data;
+    } catch (error) {
+        console.error('Payment initiation error:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            message: error.message
+        });
+        throw error;
+    }
+}
+
+// Function to retrieve stored token
+async function retrieveStoredToken() {
+    try {
+        const response = await axios.get(`https://0a82-223-24-160-202.ngrok-free.app/token`);
+        return response.data;
+    } catch (error) {
+        console.error('Error retrieving token:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
 
 // Usage example
 
@@ -134,7 +264,7 @@ const paymentData = {
             InstructionIdentification: "ID412",
             EndToEndIdentification: "E2E123",
             InstructedAmount: {
-                Amount: "55.00",
+                Amount: "100.00",
                 Currency: "GBP"
             },
             CreditorAccount: {
@@ -163,6 +293,10 @@ const paymentData = {
 };
 
 
+
+
+
+
 (async () => {
     try {
         console.log('Starting payment consent process...');
@@ -184,6 +318,60 @@ const paymentData = {
         // Create payment consent
         const consentResponse = await createDomesticPaymentConsent(paymentData, accessToken, jwsSignature);
         console.log('Payment consent created successfully:', consentResponse);
+
+        // Generate authorization JWT using the consent ID
+        const { jwt, state } = generateAuthorizationJWT(consentResponse.Data.ConsentId);
+        console.log('Authorization state (save this):', state);
+
+        // Construct authorization URL with proper URL encoding
+        const authParams = new URLSearchParams({
+            response_type: 'code id_token',
+            scope: 'payments',
+            redirect_uri: process.env.REDIRECT_URI,
+            client_id: process.env.CLIENT_ID,
+            request: jwt,
+            response_mode: 'fragment' // Optional but recommended for security
+        });
+
+        // Create the final authorization URL
+        const authUrl = `https://sandbox-oba.revolut.com/ui/index.html?${authParams.toString()}`;
+        console.log('\nAuthorization URL (redirect user to this URL):');
+        console.log(authUrl);
+        
+        console.log('\nNote: The authorization code will be valid for only 2 minutes after user consent');
+        console.log('Expected redirect format after user authorization:');
+        console.log(`${process.env.REDIRECT_URI}/?code=<auth_code>&id_token=<JWT_token>&state=${state}`);
+
+        // Add a prompt to continue after user completes authorization
+        const readline = require('readline').createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        // Wait for user to complete authorization
+        await new Promise((resolve) => {
+            readline.question('\nPress Enter after completing authorization...', () => {
+                readline.close();
+                resolve();
+            });
+        });
+
+        // Retrieve the stored token
+        console.log('\nRetrieving stored token...');
+        const tokenData = await retrieveStoredToken();
+        console.log('Retrieved token data:', tokenData);
+        console.log('Token retrieved successfully');
+
+        // Initiate the payment
+        console.log('\nInitiating payment...');
+        const paymentResponse = await initiateDomesticPayment(
+            paymentData,
+            consentResponse.Data.ConsentId,
+            tokenData.access_token
+        );
+        console.log('\nPayment initiated successfully:');
+        console.log('Payment ID:', paymentResponse.Data.DomesticPaymentId);
+        console.log('Status:', paymentResponse.Data.Status);
 
     } catch (error) {
         console.error('Main execution error:', error.message);
