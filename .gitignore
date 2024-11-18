@@ -56,3 +56,10 @@ debug.log
 
 # Optional eslint cache
 .esl
+
+
+commands.txt
+create_auth_url.py
+topup.js
+create_jwt_url_parameter.py
+jwt_token_step3.txt
