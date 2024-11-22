@@ -1,4 +1,6 @@
-1. create folder in root called keys and put keys there
+1. create folder in root called keys and put keys there:
+    a. private.key
+    b. transport.pem 
 2. install 
 3. `ngrok http 3000` 
 4. copy Forwarding URL from ngrok into revolut portal as callback URI in and in .env 
