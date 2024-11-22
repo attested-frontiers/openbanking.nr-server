@@ -60,7 +60,8 @@ async function createDomesticPaymentConsent(paymentData, accessToken, jwsSignatu
             })
         });
 
-        console.log('Payment Consent Response:', response.data);
+        console.log('Payment Consent Response:', response);
+        console.log("consent response header:", response.header); 
         return response.data;
     } catch (error) {
         console.error('Error creating payment consent:', error.response ? error.response.data : error.message);
@@ -246,7 +247,8 @@ async function initiateDomesticPayment(paymentData, consentId, accessToken) {
 // Function to retrieve stored token
 async function retrieveStoredToken() {
     try {
-        const response = await axios.get(`https://0a82-223-24-160-202.ngrok-free.app/token`);
+        const response = await axios.get('https://fc82-171-101-4-14.ngrok-free.app/token');
+        console.log('Token status:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error retrieving token:', error.response?.data || error.message);
@@ -264,7 +266,7 @@ const paymentData = {
             InstructionIdentification: "ID412",
             EndToEndIdentification: "E2E123",
             InstructedAmount: {
-                Amount: "100.00",
+                Amount: "1.00",
                 Currency: "GBP"
             },
             CreditorAccount: {
