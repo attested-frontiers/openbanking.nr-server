@@ -1,8 +1,11 @@
-require('dotenv').config();
-const fs = require('fs');
-const axios = require('axios');
-const https = require('https');
-const crypto = require('crypto');
+import dotenv from 'dotenv';
+import fs from 'fs';
+import axios from 'axios';
+import https from 'https';
+import crypto from 'crypto';
+import { response } from 'express';
+// Load environment variables
+dotenv.config();
 
 async function getAccessToken() {
     const clientId = process.env.CLIENT_ID; // Load from .env
@@ -60,11 +63,38 @@ async function createDomesticPaymentConsent(paymentData, accessToken, jwsSignatu
             })
         });
 
-        console.log('Payment Consent Response:', response);
-        console.log("consent response header:", response.header); 
+
+        console.log('Payment Consent Headers Response:', response.headers);
+        console.log('Payment Consent Data Response:', response.data);
+        console.log("jws_signture",response.headers['x-jws-signature']);
+
+        const safeStringify = (obj) => {
+            const seen = new WeakSet();
+            return JSON.stringify(obj, (key, value) => {
+              if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) {
+                  return; // Remove circular references
+                }
+                seen.add(value);
+              }
+              return value;
+            }, 2);
+          };
+
+        // Use JSON.stringify to convert the object to a string
+        fs.writeFileSync('paymentConsentResponse.json', safeStringify(response));
+        //fs.writeFileSync('paymentConsentResponse.json', JSON.stringify(response, null, 2));        
+        // Retrieve the JWS signature from the response headers
+        // const consentJwsSignature = response.headers['x-jws-signature'];
+        // if (consentJwsSignature) {
+        //     fs.writeFileSync('response_consent_jws', consentJwsSignature);
+        //     console.log('Consent JWS signature saved to file: consent_jws');
+        // } else {
+        //     console.warn('No JWS signature found in response headers');
+        // }
         return response.data;
     } catch (error) {
-        console.error('Error creating payment consent:', error.response ? error.response.data : error.message);
+        console.error('Error creating payment consent', error.response ? error.response.data : error.message);
     }
 }
 
@@ -78,7 +108,7 @@ function generateJWSSignature(payload) {
             crit: ["http://openbanking.org.uk/tan"],
             "http://openbanking.org.uk/tan": process.env.JWKS_ROOT_DOMAIN
         };
-        console.log('JWS Header:', JSON.stringify(header, null, 2));  
+        //console.log('JWS Header:', JSON.stringify(header, null, 2));  
         // Base64URL encode header and payload
         const encodedHeader = Buffer.from(JSON.stringify(header))
             .toString('base64')
@@ -232,6 +262,14 @@ async function initiateDomesticPayment(paymentData, consentId, accessToken) {
         console.log(JSON.stringify(response.data, null, 2));
         console.log('================================\n');
 
+        // Log the JWS signature from the response headers
+        const responseJwsSignature = response.headers['x-jws-signature'];
+        if (responseJwsSignature) {
+            console.log('Response JWS Signature:', responseJwsSignature);
+        } else {
+            console.warn('No JWS signature found in response headers');
+        }
+
         return response.data;
     } catch (error) {
         console.error('Payment initiation error:', {
@@ -247,7 +285,7 @@ async function initiateDomesticPayment(paymentData, consentId, accessToken) {
 // Function to retrieve stored token
 async function retrieveStoredToken() {
     try {
-        const response = await axios.get('https://fc82-171-101-4-14.ngrok-free.app/token');
+        const response = await axios.get('http://localhost:3000/token');
         console.log('Token status:', response.data);
         return response.data;
     } catch (error) {
@@ -255,6 +293,44 @@ async function retrieveStoredToken() {
         throw error;
     }
 }
+
+function verifyJWS(jws, publicKey) {
+    try {
+        const [encodedHeader, encodedPayload, encodedSignature] = jws.split('.');
+
+        console.log('verifyJWS: header', encodedHeader); 
+        console.log('verifyJWS: payload', encodedPayload); 
+        // Decode the signature
+        const signature = Buffer.from(encodedSignature, 'base64');
+        console.log('verifyJWS: signature', signature); 
+
+
+        // Reconstruct the data to verify
+        const dataToVerify = `${encodedHeader}.${encodedPayload}`;
+
+        // Verify the signature using the public key
+        const isVerified = crypto.verify(
+            'sha256',
+            Buffer.from(dataToVerify),
+            {
+                key: publicKey,
+                padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+                saltLength: 32
+            },
+            signature
+        );
+
+        console.log('JWS verification result:', isVerified);
+        return isVerified;
+    } catch (error) {
+        console.error('Error verifying JWS:', error);
+        return false;
+    }
+}
+
+
+
+
 
 
 // Usage example
@@ -316,14 +392,21 @@ const paymentData = {
             throw new Error('Failed to generate JWS signature');
         }
         console.log('Successfully generated JWS signature');
+        fs.writeFileSync('request_consent_jws', jwsSignature);
+        console.log('Consent JWS signature saved to file: consent_jws');
+        // check jws 
+        const publicKey = fs.readFileSync('./keys/signing.pem', 'utf8');
+        console.log('publicKey', publicKey);
+        verifyJWS(jwsSignature, publicKey);
 
         // Create payment consent
         const consentResponse = await createDomesticPaymentConsent(paymentData, accessToken, jwsSignature);
-        console.log('Payment consent created successfully:', consentResponse);
 
         // Generate authorization JWT using the consent ID
         const { jwt, state } = generateAuthorizationJWT(consentResponse.Data.ConsentId);
         console.log('Authorization state (save this):', state);
+        fs.writeFileSync('auth_jwt', jwt);
+        console.log('Authorization JWT saved to file: auth_jwt');
 
         // Construct authorization URL with proper URL encoding
         const authParams = new URLSearchParams({
@@ -344,16 +427,18 @@ const paymentData = {
         console.log('Expected redirect format after user authorization:');
         console.log(`${process.env.REDIRECT_URI}/?code=<auth_code>&id_token=<JWT_token>&state=${state}`);
 
-        // Add a prompt to continue after user completes authorization
-        const readline = require('readline').createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
+ 
+         // Add a prompt to continue after user completes authorization
+         const readline = await import('readline');
+         const rl = readline.createInterface({
+             input: process.stdin,
+             output: process.stdout
+         });
 
         // Wait for user to complete authorization
         await new Promise((resolve) => {
-            readline.question('\nPress Enter after completing authorization...', () => {
-                readline.close();
+            rl.question('\nPress Enter after completing authorization...', () => {
+                rl.close();
                 resolve();
             });
         });
@@ -374,6 +459,7 @@ const paymentData = {
         console.log('\nPayment initiated successfully:');
         console.log('Payment ID:', paymentResponse.Data.DomesticPaymentId);
         console.log('Status:', paymentResponse.Data.Status);
+        console.log('full response', paymentResponse); 
 
     } catch (error) {
         console.error('Main execution error:', error.message);

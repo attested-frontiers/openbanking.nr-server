@@ -1,8 +1,13 @@
-const express = require('express');
-const axios = require('axios');
-const https = require('https');
-const fs = require('fs');
-require('dotenv').config();
+import express from 'express';
+import axios from 'axios';
+import fs from 'fs';
+import https from 'https';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+let currentToken; 
+
 
 const app = express();
 
@@ -89,7 +94,7 @@ app.get('/process-auth', async (req, res) => {
         console.log('\n=== Token Response ===');
         console.log(JSON.stringify(tokenResponse, null, 2));
         // Store token with state
-        currentToken = tokenResponse
+        currentToken = tokenResponse;
         console.log('Token stored successfully');
         console.log('=====================\n');
         res.json(tokenResponse);
