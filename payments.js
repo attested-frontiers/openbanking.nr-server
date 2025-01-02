@@ -262,14 +262,28 @@ async function initiateDomesticPayment(paymentData, consentId, accessToken) {
         console.log(JSON.stringify(response.data, null, 2));
         console.log('================================\n');
 
-        // Log the JWS signature from the response headers
-        const responseJwsSignature = response.headers['x-jws-signature'];
+        // Isolate components
+        const responseHeaders = response.headers;
+        const responseData = response.data;
+        const responseJwsSignature = responseHeaders['x-jws-signature'];        
         if (responseJwsSignature) {
             console.log('Response JWS Signature:', responseJwsSignature);
         } else {
             console.warn('No JWS signature found in response headers');
         }
 
+        // Structure for saving to a file
+        const responseToSave = {
+            headers: responseHeaders,
+            data: responseData,
+            jwsSignature: responseJwsSignature
+        };
+
+        // Save to file
+        const filePath = './paymentInitResponse.json';
+        fs.writeFileSync(filePath, JSON.stringify(responseToSave, null, 2));
+        console.log(`Response saved to ${filePath}`);
+        //fs.writeFileSync('paymentInitResponse.json', JSON.stringify(response));
         return response.data;
     } catch (error) {
         console.error('Payment initiation error:', {
