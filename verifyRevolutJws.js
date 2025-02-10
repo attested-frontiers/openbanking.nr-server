@@ -3,6 +3,13 @@ import fs from 'fs';
 import https from 'https';
 import axios from 'axios';
 import * as crypto from 'crypto';
+import { Noir } from "@noir-lang/noir_js";
+
+import {  
+  OpenBankingDomesticCircuit,
+  decodeNoirOutputs,
+  generateNoirInputs, 
+} from "@openbanking.nr/js-inputs";
 
 // sandbox URI; source: 
 const JWKS_URI = 'https://keystore.openbankingtest.org.uk/001580000103UAvAAM/001580000103UAvAAM.jwks';
@@ -19,6 +26,8 @@ const agent = new https.Agent({
 // Fetch JWKS
 const jwksResponse = await axios.get(JWKS_URI, { httpsAgent: agent });
 const jwks = jwksResponse.data;
+
+console.log('jwks', jwks); 
 
 // response data we want to verify. TODO: make it input variable in future to dynamicaly verify responses from revolut
 const consentResponse = JSON.parse(fs.readFileSync('paymentInitResponse.json', 'utf8'));
@@ -52,9 +61,12 @@ console.log('public key', publicKey);
 
 
 const encodedHeader = Buffer.from(JSON.stringify(decodedSignature)).toString('base64url');
-const rawPayload = JSON.stringify(data);
+const rawPayload = Buffer.from(JSON.stringify(data));
+//const rawPayload = Buffer.from(JSON.stringify(data)).toString('base64url');
+
 
 const dataToVerify = `${encodedHeader}.${rawPayload}`;
+console.log('dataToVerify', dataToVerify); 
 
 
 const signatureBuffer = Buffer.from(signature.split('.')[2], 'base64url');
@@ -71,4 +83,16 @@ const isVerified = crypto.verify(
     signatureBuffer
 );
 
-console.log('JWS verification result:', isVerified);
+console.log('JWS verification result with crypto library:', isVerified);
+
+// start of using the ob circuit js api 
+let { publicKey: cert } = new crypto.X509Certificate(publicKey);
+console.log("public key", publicKey)
+const inputs = generateNoirInputs(dataToVerify, signatureBuffer.toString('hex'), cert); 
+const noir = new Noir(OpenBankingDomesticCircuit)
+const result = await noir.execute({params: inputs });
+const outputs = decodeNoirOutputs(result.returnValue);
+console.log('JWS verification with Noir cicrcuits', outputs);
+
+
+;
