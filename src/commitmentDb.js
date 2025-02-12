@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // Create SQLite database
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: path.join(__dirname, 'commitments.sqlite'),
+  storage: path.join(__dirname, "commitments.sqlite"),
   logging: false
 });
 
@@ -56,6 +56,15 @@ export async function getCommitmentByHash(hash) {
     return await Commitment.findByPk(hash);
   } catch (error) {
     console.error('Error retrieving commitment:', error);
+    throw error;
+  }
+}
+
+export async function getAllCommitments() {
+  try {
+    return await Commitment.findAll();
+  } catch (error) {
+    console.error('Error retrieving all commitments:', error);
     throw error;
   }
 }

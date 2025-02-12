@@ -25,7 +25,8 @@
     },
     "type": "module",
     "scripts": {
-            "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+            "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+            "server": "node src/api_server.js"
         },
     "jest": {
         "transform": {
