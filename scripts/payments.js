@@ -3,14 +3,16 @@ import fs from 'fs';
 import axios from 'axios';
 import https from 'https';
 import crypto from 'crypto';
-import { response } from 'express';
+
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: '../.env' });
+
+console.log(process.env.CLIENT_ID); 
 
 async function getAccessToken() {
     const clientId = process.env.CLIENT_ID; // Load from .env
-    const cert = fs.readFileSync('./keys/transport.pem');
-    const key = fs.readFileSync('./keys/private.key');
+    const cert = fs.readFileSync('../keys/transport.pem');
+    const key = fs.readFileSync('../keys/private.key');
 
     const url = 'https://sandbox-oba-auth.revolut.com/token';
     const data = new URLSearchParams({
@@ -19,6 +21,8 @@ async function getAccessToken() {
         client_id: clientId
     });
 
+    console.log('clientID', clientId);
+
     try {
         const response = await axios.post(url, data, {
             headers: {
@@ -26,7 +30,7 @@ async function getAccessToken() {
             },
             httpsAgent: new https.Agent({
                 cert: cert,
-                key: key, 
+                key: key,
                 rejectUnauthorized: false
             })
         });
@@ -57,8 +61,8 @@ async function createDomesticPaymentConsent(paymentData, accessToken, jwsSignatu
                 'x-jws-signature': jwsSignature
             },
             httpsAgent: new https.Agent({
-                cert: fs.readFileSync('./keys/transport.pem'),
-                key: fs.readFileSync('./keys/private.key'),
+                cert: fs.readFileSync('../keys/transport.pem'),
+                key: fs.readFileSync('../keys/private.key'),
                 rejectUnauthorized: false //need to remove this for prod
             })
         });
@@ -66,20 +70,20 @@ async function createDomesticPaymentConsent(paymentData, accessToken, jwsSignatu
 
         console.log('Payment Consent Headers Response:', response.headers);
         console.log('Payment Consent Data Response:', response.data);
-        console.log("jws_signture",response.headers['x-jws-signature']);
+        console.log("jws_signture", response.headers['x-jws-signature']);
 
         const safeStringify = (obj) => {
             const seen = new WeakSet();
             return JSON.stringify(obj, (key, value) => {
-              if (typeof value === 'object' && value !== null) {
-                if (seen.has(value)) {
-                  return; // Remove circular references
+                if (typeof value === 'object' && value !== null) {
+                    if (seen.has(value)) {
+                        return; // Remove circular references
+                    }
+                    seen.add(value);
                 }
-                seen.add(value);
-              }
-              return value;
+                return value;
             }, 2);
-          };
+        };
 
         // Use JSON.stringify to convert the object to a string
         fs.writeFileSync('paymentConsentResponse.json', safeStringify(response));
@@ -123,9 +127,9 @@ function generateJWSSignature(payload) {
             .replace(/=/g, '');
 
         const dataToSign = `${encodedHeader}.${encodedPayload}`;
-        
+
         // Read private key
-        const privateKey = fs.readFileSync('./keys/private.key');
+        const privateKey = fs.readFileSync('../keys/private.key');
 
         // Create signature using PS256 (SHA-256 with PSS padding)
         const signature = crypto.sign(
@@ -134,7 +138,7 @@ function generateJWSSignature(payload) {
             {
                 key: privateKey,
                 padding: 6,
-                saltLength: 32 
+                saltLength: 32
             }
         );
 
@@ -192,8 +196,8 @@ function generateAuthorizationJWT(consentId) {
             .replace(/=/g, '');
 
         const dataToSign = `${encodedHeader}.${encodedPayload}`;
-        
-        const privateKey = fs.readFileSync('./keys/private.key');
+
+        const privateKey = fs.readFileSync('../keys/private.key');
         const signature = crypto.sign(
             'sha256',
             Buffer.from(dataToSign),
@@ -265,7 +269,7 @@ async function initiateDomesticPayment(paymentData, consentId, accessToken) {
         // Isolate components
         const responseHeaders = response.headers;
         const responseData = response.data;
-        const responseJwsSignature = responseHeaders['x-jws-signature'];        
+        const responseJwsSignature = responseHeaders['x-jws-signature'];
         if (responseJwsSignature) {
             console.log('Response JWS Signature:', responseJwsSignature);
         } else {
@@ -312,11 +316,11 @@ function verifyJWS(jws, publicKey) {
     try {
         const [encodedHeader, encodedPayload, encodedSignature] = jws.split('.');
 
-        console.log('verifyJWS: header', encodedHeader); 
-        console.log('verifyJWS: payload', encodedPayload); 
+        console.log('verifyJWS: header', encodedHeader);
+        console.log('verifyJWS: payload', encodedPayload);
         // Decode the signature
         const signature = Buffer.from(encodedSignature, 'base64');
-        console.log('verifyJWS: signature', signature); 
+        console.log('verifyJWS: signature', signature);
 
 
         // Reconstruct the data to verify
@@ -342,11 +346,6 @@ function verifyJWS(jws, publicKey) {
     }
 }
 
-
-
-
-
-
 // Usage example
 
 // Payment consent payload
@@ -356,7 +355,7 @@ const paymentData = {
             InstructionIdentification: "ID412",
             EndToEndIdentification: "E2E123",
             InstructedAmount: {
-                Amount: "1.00",
+                Amount: "2.50",
                 Currency: "GBP"
             },
             CreditorAccount: {
@@ -392,7 +391,7 @@ const paymentData = {
 (async () => {
     try {
         console.log('Starting payment consent process...');
-        
+
         // Get access token
         const accessToken = await getAccessToken();
         if (!accessToken) {
@@ -409,7 +408,7 @@ const paymentData = {
         fs.writeFileSync('request_consent_jws', jwsSignature);
         console.log('Consent JWS signature saved to file: consent_jws');
         // check jws 
-        const publicKey = fs.readFileSync('./keys/signing.pem', 'utf8');
+        const publicKey = fs.readFileSync('../keys/signing.pem', 'utf8');
         console.log('publicKey', publicKey);
         verifyJWS(jwsSignature, publicKey);
 
@@ -436,18 +435,18 @@ const paymentData = {
         const authUrl = `https://sandbox-oba.revolut.com/ui/index.html?${authParams.toString()}`;
         console.log('\nAuthorization URL (redirect user to this URL):');
         console.log(authUrl);
-        
+
         console.log('\nNote: The authorization code will be valid for only 2 minutes after user consent');
         console.log('Expected redirect format after user authorization:');
         console.log(`${process.env.REDIRECT_URI}/?code=<auth_code>&id_token=<JWT_token>&state=${state}`);
 
- 
-         // Add a prompt to continue after user completes authorization
-         const readline = await import('readline');
-         const rl = readline.createInterface({
-             input: process.stdin,
-             output: process.stdout
-         });
+
+        // Add a prompt to continue after user completes authorization
+        const readline = await import('readline');
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
 
         // Wait for user to complete authorization
         await new Promise((resolve) => {
@@ -473,7 +472,7 @@ const paymentData = {
         console.log('\nPayment initiated successfully:');
         console.log('Payment ID:', paymentResponse.Data.DomesticPaymentId);
         console.log('Status:', paymentResponse.Data.Status);
-        console.log('full response', paymentResponse); 
+        console.log('full response', paymentResponse);
 
     } catch (error) {
         console.error('Main execution error:', error.message);

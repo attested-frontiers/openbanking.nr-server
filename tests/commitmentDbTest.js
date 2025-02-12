@@ -1,4 +1,4 @@
-import { createCommitment, getCommitmentByHash } from './commitmentDb.js';
+import { createCommitment, getCommitmentByHash } from '../src/commitmentDb.js';
 import crypto from 'crypto';
 
 async function testCommitmentDb() {
