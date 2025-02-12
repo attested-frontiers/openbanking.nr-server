@@ -3,13 +3,15 @@ import axios from 'axios';
 import fs from 'fs';
 import https from 'https';
 import dotenv from 'dotenv';
+import { createCommitment, getCommitmentByHash } from './commitmentDb.js';
 
 dotenv.config();
 
 let currentToken; 
 
-
 const app = express();
+
+app.use(express.json());
 
 // Add basic request logging
 app.use((req, res, next) => {
@@ -131,6 +133,43 @@ app.get('/token-status', (req, res) => {
         accessTokenPreview: currentToken ? `${currentToken.access_token.substring(0, 20)}...` : null
     });
 });
+
+// POST endpoint to create a commitment
+app.post('/commitment', async (req, res) => {
+    try {
+      const { hash, accountNumber, sortCode, amount, salt } = req.body;
+      const commitment = await createCommitment({ 
+        hash, 
+        accountNumber, 
+        sortCode, 
+        amount, 
+        salt 
+      });
+      res.status(201).json(commitment);
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Failed to create commitment', 
+        details: error.message 
+      });
+    }
+  });
+
+// GET endpoint to retrieve a commitment by hash
+app.get('/commitment/:hash', async (req, res) => {
+    try {
+      const commitment = await getCommitmentByHash(req.params.hash);
+      if (!commitment) {
+        return res.status(404).json({ error: 'Commitment not found' });
+      }
+      res.json(commitment);
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Failed to retrieve commitment', 
+        details: error.message 
+      });
+    }
+  });
+
 
 async function exchangeCodeForToken(code) {
     const url = 'https://sandbox-oba-auth.revolut.com/token';
