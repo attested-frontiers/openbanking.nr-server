@@ -1,7 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import { initializePayment } from './paymentService.js';
-import { createCommitment, getCommitmentByHash } from './commitmentDb.js';
+import { createCommitment, getCommitmentByHash, getAllCommitments } from './commitmentDb.js';
 
 dotenv.config();
 
