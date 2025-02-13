@@ -6,9 +6,12 @@ import axios from 'axios';
 import fs from 'fs';
 import https from 'https';
 import cors from 'cors';
+import * as jose from 'jose';
 import { randomUUID } from 'crypto';
 import { initializePayment, executeDomesticPayment } from './paymentService.js';
 import { createCommitment, getCommitmentByHash, getAllCommitments } from './commitmentDb.js';
+import { generatePubkeyParams, generateNoirInputs } from "@openbanking.nr/js-inputs";
+import { extractPublicKey } from './jws.js';
 import StateManager from './stateManager.js';
 
 
@@ -301,6 +304,48 @@ async function exchangeCodeForToken(code) {
     }
 }
 
+// POST endpoint to extract public key in a format for noir input
+app.post('/extract-public-key', async (req, res) => {
+    try {
+        const { signature } = req.body;
+        if (!signature) {
+            return res.status(400).json({ error: 'Signature is required' });
+        }
+        const publicKeyCert = await extractPublicKey(signature);
+
+        res.json({ publicKey: generatePubkeyParams(publicKeyCert.publicKey) });    } catch (error) {
+        console.error('Error extracting public key:', error);
+        res.status(500).json({ error: error.message });
+    }
+}); 
+
+// POST endpoint to generate Noir inputs
+app.post('/noir-inputs', async (req, res) => {
+    try {
+        const { rawPayload, signature } = req.body;
+        if (!signature || !rawPayload) {
+            return res.status(400).json({ error: 'Signature and dataToVerify are required' });
+        }
+        console.log('body', req.body);
+        const decodedSignature = jose.decodeProtectedHeader(signature);
+        const encodedHeader = Buffer.from(JSON.stringify(decodedSignature)).toString('base64url');
+        const dataToVerify = `${encodedHeader}.${rawPayload}`;
+        console.log("dataToVerify", dataToVerify);
+
+        // Extract public key
+        const publicKeyCert = await extractPublicKey(signature);
+        console.log('publicKeyCert', publicKeyCert.publicKey);
+
+        // Generate Noir inputs
+        const signatureBuffer = Buffer.from(signature.split('.')[2], 'base64url');
+        const inputs = generateNoirInputs(dataToVerify, signatureBuffer.toString('hex'), publicKeyCert.publicKey);
+
+        res.json({ inputs });
+    } catch (error) {
+        console.error('Error generating Noir inputs:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // function retrieveConsentIdAndPaymentDataByState(state) {
 //     return stateStore[state] || {};
 // }
