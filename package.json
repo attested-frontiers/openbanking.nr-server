@@ -13,7 +13,9 @@
         "jose": "^5.9.6",
         "ocsp": "^1.2.0",
         "sequelize": "^6.37.5",
-        "sqlite3": "^5.1.7"
+        "sqlite3": "^5.1.7",
+        "ws": "^8.18.0", 
+        "cors": "^2.8.5"
     },
     "devDependencies": {
         "@babel/preset-env": "^7.26.8",
@@ -30,11 +32,14 @@
         },
     "jest": {
         "transform": {
-            "^.+\\.[tj]sx?$": ["babel-jest", {
-                "targets": {
-                    "node": "current"
+            "^.+\\.[tj]sx?$": [
+                "babel-jest",
+                {
+                    "targets": {
+                        "node": "current"
+                    }
                 }
-            }]
+            ]
         },
         "transformIgnorePatterns": [
             "node_modules/(?!(@noir-lang|@openbanking.nr)/)"

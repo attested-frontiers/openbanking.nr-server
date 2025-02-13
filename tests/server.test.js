@@ -1,6 +1,6 @@
 import supertest from 'supertest';
 import { createServer } from 'http';
-import app from '../src/api_server.js'; // Update this with your actual app import path
+import app from '../src/server.js'; // Update this with your actual app import path
 import { jest } from '@jest/globals';
 import crypto from 'crypto';
 
@@ -31,7 +31,7 @@ afterAll(async () => {
     });
 });
 
-describe('Live Server Tests', () => {
+describe('Server Tests', () => {
 
     const testData = {
         commitment: null  // Will store the commitment data after creation

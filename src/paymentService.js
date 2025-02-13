@@ -253,3 +253,100 @@ export async function initializePayment(paymentData) {
         consentId: consentResponse.Data.ConsentId
     };
 }
+
+
+
+// Function to create payment payload with consent ID
+function createPaymentPayload(paymentData, consentId) {
+    return {
+        Data: {
+            ConsentId: consentId,
+            ...paymentData.Data
+        },
+        Risk: paymentData.Risk
+    };
+}
+
+export async function executeDomesticPayment(paymentData, consentId, accessToken) {
+    // Generate JWS signature for the payment payload
+    //const jwsSignature = generateJWSSignature(paymentPayload);
+    const paymentPayload = createPaymentPayload(paymentData, consentId);
+    // Generate new JWS signature for payment payload
+    const jwsSignature = generateJWSSignature(paymentPayload);
+
+    try {
+        const response = await axios.post(
+            'https://sandbox-oba.revolut.com/domestic-payments',
+            paymentPayload,
+            {
+                headers: {
+                    'x-fapi-financial-id': process.env.FINANCIAL_ID,
+                    'Content-Type': 'application/json',
+                    'x-idempotency-key': crypto.randomUUID(),
+                    'Authorization': `Bearer ${accessToken}`,
+                    'x-jws-signature': jwsSignature
+                },
+                httpsAgent: new https.Agent({
+                    cert: fs.readFileSync('./keys/transport.pem'),
+                    key: fs.readFileSync('./keys/private.key'),
+                    rejectUnauthorized: false
+                })
+            }
+        );
+
+        console.log('\n=== Payment Initiation Response ===');
+        console.log(JSON.stringify(response.data, null, 2));
+        console.log('================================\n');
+
+        // Isolate components
+        const responseHeaders = response.headers;
+        const responseData = response.data;
+        const responseJwsSignature = responseHeaders['x-jws-signature'];
+        if (responseJwsSignature) {
+            console.log('Response JWS Signature:', responseJwsSignature);
+        } else {
+            console.warn('No JWS signature found in response headers');
+        }
+
+        // Structure for saving to a file
+        const responseToSave = {
+            headers: responseHeaders,
+            data: responseData,
+            jwsSignature: responseJwsSignature
+        };
+
+        // Save to file
+        const filePath = './paymentInitResponse.json';
+        fs.writeFileSync(filePath, JSON.stringify(responseToSave, null, 2));
+        console.log(`Response saved to ${filePath}`);
+        //fs.writeFileSync('paymentInitResponse.json', JSON.stringify(response));
+        return response.data;
+    } catch (error) {
+        console.error('Payment initiation error:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            message: error.message
+        });
+        throw error;
+    }
+}
+
+// Function to retrieve stored token
+async function retrieveStoredToken() {
+    try {
+        const response = await axios.get('http://localhost:3000/token');
+        console.log('Token status:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error retrieving token:', error.response?.data || error.message);
+        throw error;
+    }
+}
+
+
+
+
+
+
+
