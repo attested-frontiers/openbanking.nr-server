@@ -8,6 +8,35 @@
 <body>
     <h1>Processing Authorization...</h1>
     <div id="result"></div>
-    <script src="/scripts/callback.js"></script>
+    <script>
+        // Get the fragment parameters from the URL
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+
+        // Extract the code, state, and id_token
+        const code = params.get('code');
+        const state = params.get('state');
+        const idToken = params.get('id_token');
+
+        // Log the parameters for debugging
+        console.log('Code:', code);
+        console.log('State:', state);
+        console.log('ID Token:', idToken);
+        console.log("params", params);
+
+        // Send the code to the server
+        fetch(`/process-auth?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}&id_token=${encodeURIComponent(idToken)}`)
+            .then(response => response.text())
+            .then(data => {
+                console.log('Payment Response:', data);
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = `<p>${data}</p>`;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = 
+                    '<h2>Error</h2><pre>' + error.message + '</pre>';
+            });
+    </script>
 </body>
 </html>

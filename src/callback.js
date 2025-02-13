@@ -1,6 +1,7 @@
 // Get the fragment parameters
 const hash = window.location.hash.substring(1);
 const params = new URLSearchParams(hash);
+console.log("params: ", params);
 
 // Log the parameters
 console.log('Code:', params.get('code'));
@@ -9,7 +10,10 @@ console.log('ID Token:', params.get('id_token'));
 
 // Send to server
 fetch('/process-auth?' + hash)
-    .then(response => response.json())
+    .then(response => {
+        console.log("returned")
+        return response.json()
+    })
     .then(data => {
         const resultDiv = document.getElementById('result');
         if (data.error) {
@@ -23,11 +27,11 @@ fetch('/process-auth?' + hash)
                 <p>You can close this window now.</p>
             `;
 
-            // Send WebSocket update
-            const ws = new WebSocket('ws://localhost:3000');
-            ws.onopen = () => {
-                ws.send(JSON.stringify({ message: 'Authorization successful', token: data }));
-            };
+            // // Send WebSocket update
+            // const ws = new WebSocket('ws://localhost:3000');
+            // ws.onopen = () => {
+            //     ws.send(JSON.stringify({ message: 'Authorization successful', token: data }));
+            // };
         }
     })
     .catch(error => {

@@ -107,7 +107,7 @@ async function createDomesticPaymentConsent(paymentData, accessToken, jwsSignatu
     const url = 'https://sandbox-oba.revolut.com/domestic-payment-consents';
 
     try {
-        const response = await axios.post(url, paymentData, {
+        const request = axios.post(url, paymentData, {
             headers: {
                 'x-fapi-financial-id': process.env.FINANCIAL_ID, // Replace with your financial ID
                 'Content-Type': 'application/json',
@@ -121,6 +121,9 @@ async function createDomesticPaymentConsent(paymentData, accessToken, jwsSignatu
                 rejectUnauthorized: false //TODO: need to enable this
             })
         });
+        console.log('request', request);
+        const response = await request; 
+
 
 
         console.log('Payment Consent Headers Response:', response.headers);
@@ -234,6 +237,7 @@ export async function initializePayment(paymentData) {
     
     // Generate JWT and get state
     const { jwt, state } = generateAuthorizationJWT(consentResponse.Data.ConsentId);
+    console.log('JWT state', state);
     
     // Generate authorization URL
     const authParams = new URLSearchParams({
@@ -320,7 +324,7 @@ export async function executeDomesticPayment(paymentData, consentId, accessToken
         fs.writeFileSync(filePath, JSON.stringify(responseToSave, null, 2));
         console.log(`Response saved to ${filePath}`);
         //fs.writeFileSync('paymentInitResponse.json', JSON.stringify(response));
-        return response.data;
+        return {...response.data, jwsSignature: responseJwsSignature};
     } catch (error) {
         console.error('Payment initiation error:', {
             status: error.response?.status,

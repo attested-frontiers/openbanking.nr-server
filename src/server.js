@@ -6,13 +6,15 @@ import axios from 'axios';
 import fs from 'fs';
 import https from 'https';
 import cors from 'cors';
+import { randomUUID } from 'crypto';
 import { initializePayment, executeDomesticPayment } from './paymentService.js';
 import { createCommitment, getCommitmentByHash, getAllCommitments } from './commitmentDb.js';
+import StateManager from './stateManager.js';
+
 
 dotenv.config();
 
-let currentToken;
-const stateStore = {}; 
+let currentToken; 
 
 const app = express();
 app.use(express.json());
@@ -23,6 +25,8 @@ app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
     next();
 });
+
+const stateManager = new StateManager();
 
 // Serve static files from the src directory
 app.use(express.static('src'));
@@ -81,9 +85,20 @@ app.post('/api/initialize-payment', async (req, res) => {
         const paymentData = req.body;
         const result = await initializePayment(paymentData);
         const consentId = result.consentId;
-        const state = crypto.randomUUID();
-        stateStore[state] = {consentId, paymentData};
-        res.json(result);
+        const state = result.state; // Use the state from the result
+
+        // Store state with consentId and paymentData
+        stateManager.store(state, {
+            consentId,
+            paymentData
+        });
+
+        // Log to verify storage
+        const storedData = stateManager.get(state);
+        console.log("Stored consentId:", storedData.consentId);
+        console.log("Stored paymentData:", storedData.paymentData);
+
+        res.json({ ...result, state }); // Include state in the response
     } catch (error) {
         console.error('Payment initiation error:', error);
         res.status(500).json({ error: error.message });
@@ -140,11 +155,17 @@ app.get('/commitments', async (req, res) => {
 });
 
 // Main callback handler
-app.get('/callback', (req, res) => {
+app.get('/callback', async (req, res) => {
     console.log('Received callback request:', {
         query: req.query,
         headers: req.headers
     });
+    // console.log("a", req.query("code"));
+    // console.log("b", req.query("state"));
+    // console.log("c", req.query("id_token"));
+    // console.log('Code:', params.get('code'));
+    // console.log('State:', params.get('state'));
+    // console.log('ID Token:', params.get('id_token'));
 
     res.sendFile('callback.html', { root: 'src' });
 });
@@ -152,11 +173,12 @@ app.get('/callback', (req, res) => {
 
 // Process the auth code
 app.get('/process-auth', async (req, res) => {
-    const { code, id_token } = req.query;
+    const { code, id_token, state } = req.query;
     
     console.log('\n=== Authorization Data ===');
     console.log('Code:', code);
     console.log('ID Token:', id_token);
+    console.log('State:', state);
     console.log('========================\n');
 
     if (!code) {
@@ -171,12 +193,23 @@ app.get('/process-auth', async (req, res) => {
         currentToken = tokenResponse;
         console.log('Token stored successfully');
         console.log('=====================\n');
-        res.json(tokenResponse);
-        // Send WebSocket update
+        
+        // Send WebSocket update for successful authorization
         broadcast({ message: 'Authorization successful', token: tokenResponse });
+
         // Retrieve the consentId and paymentData using the state
-        //const { consentId, paymentData } = retrieveConsentIdAndPaymentDataByState(state);
-        const { consentId, paymentData } = stateStore[state];
+        const stateData = stateManager.get(state);
+        if (!stateData) {
+            return res.status(400).json({ 
+                error: 'Invalid or expired state',
+                message: 'Please reinitiate the payment flow'
+            });
+        }
+        
+        const { consentId, paymentData } = stateData;
+        console.log("ConsentId:", consentId);
+        console.log("PaymentData:", paymentData);
+
         const paymentResponse = await executeDomesticPayment(paymentData, consentId, tokenResponse.access_token);
         res.json(paymentResponse);
         // Send WebSocket update
@@ -184,7 +217,7 @@ app.get('/process-auth', async (req, res) => {
 
     } catch (error) {
         console.error('Token exchange error:', error);
-        res.json({ 
+        res.status(500).json({ 
             error: `Failed to exchange code for token: ${error.message}`,
             details: error.response?.data
         });
@@ -216,22 +249,20 @@ app.get('/token-status', (req, res) => {
     });
 });
 
-// // New endpoint to initiate payment after auth
-// app.post('/execute-payment', async (req, res) => {
-//     try {
-//         const { paymentData, consentId } = req.body;
-//         const tokenData = currentToken; // Assuming token is already stored
-//         const paymentResponse = await initiateDomesticPayment(paymentData, consentId, tokenData.access_token);
+// New endpoint to initiate payment after auth
+app.post('/execute-payment', async (req, res) => {
+    try {
+        const { paymentData, consentId } = req.body;
+        const tokenData = currentToken; // Assuming token is already stored
+        const paymentResponse = await executeDomesticPayment(paymentData, consentId, tokenData.access_token);
         
-//         res.json(paymentResponse);
+        res.json(paymentResponse);
 
-//         // Send WebSocket update
-//         broadcast({ message: 'Payment initiated', paymentResponse });
-//     } catch (error) {
-//         console.error('Payment initiation error:', error);
-//         res.status(500).json({ error: error.message });
-//     }
-// });
+    } catch (error) {
+        console.error('Payment initiation error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 async function exchangeCodeForToken(code) {
     const url = 'https://sandbox-oba-auth.revolut.com/token';
@@ -275,7 +306,7 @@ async function exchangeCodeForToken(code) {
 // }
 
 const PORT = 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`\n=== Server Started ===`);
     console.log(`Local URL: http://localhost:${PORT}`);
     console.log(`Callback URL: ${process.env.REDIRECT_URI}`);
