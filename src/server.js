@@ -9,20 +9,34 @@ import cors from 'cors';
 import * as jose from 'jose';
 import { randomUUID } from 'crypto';
 import { initializePayment, executeDomesticPayment } from './paymentService.js';
-import { createCommitment, getCommitmentByHash, getAllCommitments } from './commitmentDb.js';
+import { createCommitment, getCommitmentByHash, getAllCommitments, purgeCommitments } from './commitmentDb.js';
 import { generatePubkeyParams, generateNoirInputs } from "@openbanking.nr/js-inputs";
 import { extractPublicKey } from './jws.js';
 import StateManager from './stateManager.js';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
+// i added a comment
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 dotenv.config();
+
+//const privateKey = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/privkey.pem', 'utf-8');
+//const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/fullchain.pem', 'utf-8');
+//const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/cert.pem', 'utf-8');
+const key = fs.readFileSync('./ssl/privkey.pem', 'utf-8');
+//const cert = fs.readFileSync('./ssl/cert.pem', 'utf-8');
+const cert = fs.readFileSync('./ssl/fullchain.pem', 'utf-8');
+const credentials = { key, cert };
 
 let currentToken; 
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-
+app.use(express.static(__dirname + 'static', { dotfiles: 'allow' }));
 // Add basic request logging
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -35,8 +49,14 @@ const stateManager = new StateManager();
 app.use(express.static('src'));
 
 // Create an HTTP server from the Express app
-const server = http.createServer(app);
-
+let server;
+let port = 80;
+if (process.env.PRODUCTION == 'true') {
+	server = https.createServer(credentials, app);
+	port = 443;
+} else {
+	server = http.createServer(app);
+}
 // Create a WebSocket server that shares the same HTTP server
 const wss = new WebSocketServer({ server });
 
@@ -111,15 +131,13 @@ app.post('/api/initialize-payment', async (req, res) => {
 // POST endpoint to create a commitment
 app.post('/commitment', async (req, res) => {
     try {
-        const { hash, accountNumber, sortCode, amount, salt } = req.body;
-        const commitment = await createCommitment({ 
-            hash, 
-            accountNumber, 
-            sortCode, 
-            amount, 
-            salt 
+        // const { hash, accountNumber, sortCode, amount, salt } = req.body;
+        const { commitment, sortCode } = req.body;
+        await createCommitment({ 
+            commitment,
+            sortCode
         });
-        res.status(201).json(commitment);
+        res.status(201).send({ message: "Commitment created successfully" });
     } catch (error) {
         res.status(500).json({ 
             error: 'Failed to create commitment', 
@@ -145,15 +163,26 @@ app.get('/commitment/:hash', async (req, res) => {
 });
 
 // GET endpoint to retrieve all commitments
-app.get('/commitments', async (req, res) => {
+app.get('/commitments', async (_, res) => {
     try {
         const commitments = await getAllCommitments();
+        console.log("commitments", commitments);
         res.json(commitments);
     } catch (error) {
         res.status(500).json({ 
             error: 'Failed to retrieve commitments', 
             details: error.message 
         });
+    }
+});
+
+
+app.get('/commitments/purge', async (_, res) => {
+    try {
+        await purgeCommitments();
+        res.status(204).json({ message: "All commitments purged successfully" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to purge commitments", details: error.message });
     }
 });
 
@@ -172,6 +201,7 @@ app.get('/callback', async (req, res) => {
 
     res.sendFile('callback.html', { root: 'src' });
 });
+
 
 
 // Process the auth code
@@ -214,6 +244,7 @@ app.get('/process-auth', async (req, res) => {
         console.log("PaymentData:", paymentData);
 
         const paymentResponse = await executeDomesticPayment(paymentData, consentId, tokenResponse.access_token);
+        
         res.json(paymentResponse);
         // Send WebSocket update
         broadcast({ message: 'Payment initiated', paymentResponse });
@@ -350,13 +381,17 @@ app.post('/noir-inputs', async (req, res) => {
 //     return stateStore[state] || {};
 // }
 
-const PORT = 3000;
-server.listen(PORT, () => {
+//const PORT = 3000;
+server.listen(port, () => {
     console.log(`\n=== Server Started ===`);
-    console.log(`Local URL: http://localhost:${PORT}`);
+    if (port == 80) {
+        console.log('Started HTTP Server');
+    } else {
+        console.log('Started HTTPS Server');
+    }
     console.log(`Callback URL: ${process.env.REDIRECT_URI}`);
     console.log(`\nTest endpoints:`);
-    console.log(`1. Health check: curl http://localhost:${PORT}/health`);
+    console.log(`1. Health check: curl http://localhost:${port}/health`);
     console.log(`2. Callback URL: ${process.env.REDIRECT_URI}`);
     console.log(`========================\n`);
 });

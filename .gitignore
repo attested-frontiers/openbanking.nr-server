@@ -13,6 +13,8 @@
 *.csr
 *.p12
 *.pfx
+ssl/ 
+
 # Dependencies
 node_modules/
 package-lock.json
