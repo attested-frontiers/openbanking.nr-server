@@ -37,6 +37,8 @@
                 console.error('Error:', error);
                 document.getElementById('result').innerHTML = 
                     '<h2>Error</h2><pre>' + error.message + '</pre>';
+            }).finally(() => {
+                window.close();
             });
     </script>
 </body>

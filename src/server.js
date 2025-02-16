@@ -124,6 +124,7 @@ app.post('/api/initialize-payment', async (req, res) => {
         res.json({ ...result, state }); // Include state in the response
     } catch (error) {
         console.error('Payment initiation error:', error);
+        broadcast({ message: 'Payment initiation failed', error: error.message });
         res.status(500).json({ error: error.message });
     }
 });
@@ -251,10 +252,12 @@ app.get('/process-auth', async (req, res) => {
 
     } catch (error) {
         console.error('Token exchange error:', error);
+        broadcast({ message: 'Payment failed', error: error.message });
         res.status(500).json({ 
             error: `Failed to exchange code for token: ${error.message}`,
             details: error.response?.data
         });
+    
     }
 });
 
