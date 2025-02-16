@@ -198,9 +198,9 @@ app.get('/callback', async (req, res) => {
     // console.log('Code:', params.get('code'));
     // console.log('State:', params.get('state'));
     // console.log('ID Token:', params.get('id_token'));
-
+    //res.status(200).json({ message: 'Callback received successfully' });
     res.sendFile('callback.html', { root: 'src' });
-});
+    });
 
 
 

@@ -28,9 +28,10 @@
         fetch(`/process-auth?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}&id_token=${encodeURIComponent(idToken)}`)
             .then(response => response.text())
             .then(data => {
-                console.log('Payment Response:', data);
-                const resultDiv = document.getElementById('result');
-                resultDiv.innerHTML = `<p>${data}</p>`;
+                //console.log('Payment Response:', data);
+                //const resultDiv = document.getElementById('result');
+                //resultDiv.innerHTML = `<p>${data}</p>`;
+                window.close();
             })
             .catch(error => {
                 console.error('Error:', error);
