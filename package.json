@@ -6,7 +6,7 @@
     "license": "MIT",
     "dependencies": {
         "@noir-lang/noir_js": "=1.0.0-beta.1",
-        "@openbanking.nr/js-inputs": "file:/home/ubuntu/Dropbox/WEB/openBanking/openbanking-circuit/js",
+        "@openbanking.nr/js-inputs": "file:../openbanking-circuit/js",
         "axios": "^0.21.4",
         "dotenv": "^8.6.0",
         "express": "^4.21.1",

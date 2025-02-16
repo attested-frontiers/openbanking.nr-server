@@ -9,7 +9,7 @@ import cors from 'cors';
 import * as jose from 'jose';
 import { randomUUID } from 'crypto';
 import { initializePayment, executeDomesticPayment } from './paymentService.js';
-import { createCommitment, getCommitmentByHash, getAllCommitments } from './commitmentDb.js';
+import { createCommitment, getCommitmentByHash, getAllCommitments, purgeCommitments } from './commitmentDb.js';
 import { generatePubkeyParams, generateNoirInputs } from "@openbanking.nr/js-inputs";
 import { extractPublicKey } from './jws.js';
 import StateManager from './stateManager.js';
@@ -111,15 +111,13 @@ app.post('/api/initialize-payment', async (req, res) => {
 // POST endpoint to create a commitment
 app.post('/commitment', async (req, res) => {
     try {
-        const { hash, accountNumber, sortCode, amount, salt } = req.body;
-        const commitment = await createCommitment({ 
-            hash, 
-            accountNumber, 
-            sortCode, 
-            amount, 
-            salt 
+        // const { hash, accountNumber, sortCode, amount, salt } = req.body;
+        const { commitment, sortCode } = req.body;
+        await createCommitment({ 
+            commitment,
+            sortCode
         });
-        res.status(201).json(commitment);
+        res.status(201).send({ message: "Commitment created successfully" });
     } catch (error) {
         res.status(500).json({ 
             error: 'Failed to create commitment', 
@@ -145,15 +143,26 @@ app.get('/commitment/:hash', async (req, res) => {
 });
 
 // GET endpoint to retrieve all commitments
-app.get('/commitments', async (req, res) => {
+app.get('/commitments', async (_, res) => {
     try {
         const commitments = await getAllCommitments();
+        console.log("commitments", commitments);
         res.json(commitments);
     } catch (error) {
         res.status(500).json({ 
             error: 'Failed to retrieve commitments', 
             details: error.message 
         });
+    }
+});
+
+
+app.get('/commitments/purge', async (_, res) => {
+    try {
+        await purgeCommitments();
+        res.status(204).json({ message: "All commitments purged successfully" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to purge commitments", details: error.message });
     }
 });
 
@@ -172,6 +181,7 @@ app.get('/callback', async (req, res) => {
 
     res.sendFile('callback.html', { root: 'src' });
 });
+
 
 
 // Process the auth code
@@ -214,6 +224,7 @@ app.get('/process-auth', async (req, res) => {
         console.log("PaymentData:", paymentData);
 
         const paymentResponse = await executeDomesticPayment(paymentData, consentId, tokenResponse.access_token);
+        
         res.json(paymentResponse);
         // Send WebSocket update
         broadcast({ message: 'Payment initiated', paymentResponse });
@@ -349,6 +360,12 @@ app.post('/noir-inputs', async (req, res) => {
 // function retrieveConsentIdAndPaymentDataByState(state) {
 //     return stateStore[state] || {};
 // }
+
+app.get('/business-api', (req, res) => {
+    console.log('Received callback:', req.body);
+    // Process the callback data
+    res.status(200).send('Callback received');
+  });
 
 const PORT = 3000;
 server.listen(PORT, () => {

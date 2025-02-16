@@ -16,27 +16,23 @@ const sequelize = new Sequelize({
 
 // Define Commitment model
 const Commitment = sequelize.define('Commitment', {
-  hash: {
+  commitment: {
     type: DataTypes.STRING,
     primaryKey: true,
     unique: true
-  },
-  accountNumber: {
-    type: DataTypes.STRING,
-    allowNull: false
   },
   sortCode: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  amount: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
-  },
-  salt: {
-    type: DataTypes.STRING,
-    allowNull: false
-  }
+  // sortCode: {
+  //   type: DataTypes.STRING,
+  //   allowNull: false
+  // },
+  // salt: {
+  //   type: DataTypes.STRING,
+  //   allowNull: false
+  // }
 });
 
 // Sync model with database
@@ -51,7 +47,19 @@ export async function createCommitment(commitmentData) {
   }
 }
 
-export async function getCommitmentByHash(hash) {
+export async function purgeCommitments() {
+  try {
+    await Commitment.destroy({
+      where: {}, // No conditions, deletes all records
+      truncate: true // Optionally, use truncate to reset the auto-increment counter
+    });
+  } catch (error) {
+    console.error('Error deleting all commitments:', error);
+    throw error;
+  }
+}
+
+export async function getCommitmentByHash(commitment) {
   try {
     return await Commitment.findByPk(hash);
   } catch (error) {
