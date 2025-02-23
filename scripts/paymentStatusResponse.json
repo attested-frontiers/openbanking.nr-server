@@ -1,0 +1,61 @@
+{
+  "headers": {
+    "date": "Thu, 20 Feb 2025 18:41:26 GMT",
+    "content-type": "application/json",
+    "transfer-encoding": "chunked",
+    "connection": "close",
+    "vary": "Accept-Encoding",
+    "x-jws-signature": "eyJraWQiOiJvSjQwLUcxVklxbUU2eUhuYnA4S1E1Qmk2bXciLCJhbGciOiJQUzI1NiIsImNyaXQiOlsiYjY0IiwiaHR0cDovL29wZW5iYW5raW5nLm9yZy51ay9pYXQiLCJodHRwOi8vb3BlbmJhbmtpbmcub3JnLnVrL2lzcyIsImh0dHA6Ly9vcGVuYmFua2luZy5vcmcudWsvdGFuIl0sImI2NCI6ZmFsc2UsImh0dHA6Ly9vcGVuYmFua2luZy5vcmcudWsvdGFuIjoib3BlbmJhbmtpbmcub3JnLnVrIiwiaHR0cDovL29wZW5iYW5raW5nLm9yZy51ay9pc3MiOiIwMDE1ODAwMDAxMDNVQXZBQU0iLCJodHRwOi8vb3BlbmJhbmtpbmcub3JnLnVrL2lhdCI6MTc0MDA3Njg4Nn0..TpbEDhY6rDhlDYDy22S9y09_vov0Vi3COMVV9DSSqZIV2J1M3JOjw1mfW2oVDCQ0W70tCde1AV7O4aiEmUTL8Wp_WmkuW0Botk__yO0k10o3nOc4AJRmOcI_vlet3zqIfikioEluWLu0BHkeT9js73Obg-OX_Pew2rlLi_vqcOcqsErE-SXjIX67C3rdliSt7SADv0WXoQ8Upb_5LN3lRierXgPeu4KyCQp0LDf1Q0zYqaE6qQhKMBAfFZT0HJYAD7cXGfnRhn1zmtxw-iq5r-2Tmhm19D6sAxLMp__fUgIOv4JwPaRUIK2MKPqRN-UlmCgY_It6I5EpiBU6OClNaQ",
+    "request-id": "MK78268HRNW1",
+    "strict-transport-security": "max-age=2592000; includeSubDomains; preload",
+    "x-frame-options": "DENY",
+    "x-content-type-options": "nosniff",
+    "x-xss-protection": "1; mode=block",
+    "referrer-policy": "no-referrer",
+    "via": "1.1 google",
+    "cf-cache-status": "DYNAMIC",
+    "set-cookie": [
+      "__cf_bm=TH7duAAm4weekcuz7WkT8ssCa0FPN6BiD_VjYOnvNk4-1740076886-1.0.1.1-UJkny1H5uuxdnT_hDM3Y7h4A2bnt5qbquShke4SIqcO.2ZznkM44YsuGUp1OtWZkBHOmih2e4uHTBV2fHPtdww; path=/; expires=Thu, 20-Feb-25 19:11:26 GMT; domain=.revolut.com; HttpOnly; Secure; SameSite=None",
+      "_cfuvid=Zy70NtUCQdLwlSYd2JELY.QDA9NkXdaWsWAbxRfPyrY-1740076886711-0.0.1.1-604800000; path=/; domain=.revolut.com; HttpOnly; Secure; SameSite=None"
+    ],
+    "server": "cloudflare",
+    "cf-ray": "9150a17d5a90791b-CDG"
+  },
+  "data": {
+    "Data": {
+      "DomesticPaymentId": "67b35f52-04d9-a698-804c-d9226ab2acf4",
+      "Status": "AcceptedSettlementCompleted",
+      "StatusUpdateDateTime": "2025-02-17T16:17:17.27064Z",
+      "CreationDateTime": "2025-02-17T16:09:54.389289Z",
+      "ConsentId": "050d0fd2-21e2-46ed-b3da-54a5c83594c5",
+      "Initiation": {
+        "RemittanceInformation": {
+          "Unstructured": "Shipment fee"
+        },
+        "DebtorAccount": {
+          "SchemeName": "UK.OBIE.SortCodeAccountNumber",
+          "Identification": "04290953215338",
+          "Name": "Acme Corporation"
+        },
+        "EndToEndIdentification": "E2E123",
+        "InstructionIdentification": "ID412",
+        "CreditorAccount": {
+          "Name": "Receiver Co.",
+          "SchemeName": "UK.OBIE.SortCodeAccountNumber",
+          "Identification": "11223321325698"
+        },
+        "InstructedAmount": {
+          "Amount": "2.50",
+          "Currency": "GBP"
+        }
+      }
+    },
+    "Links": {
+      "Self": "https://sandbox-oba.revolut.com/domestic-payments/67b35f52-04d9-a698-804c-d9226ab2acf4"
+    },
+    "Meta": {
+      "TotalPages": 1
+    }
+  },
+  "status": 200
+}
