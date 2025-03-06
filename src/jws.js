@@ -3,16 +3,10 @@ import fs from 'fs';
 import https from 'https';
 import axios from 'axios';
 import * as crypto from 'crypto';
-import { Noir } from "@noir-lang/noir_js";
-import {  
-  OpenBankingDomesticCircuit,
-  decodeNoirOutputs,
-  generateNoirInputs, 
-} from "@openbanking.nr/js-inputs";
-import ocsp from 'ocsp';
 
 // Constants
-const JWKS_URI = 'https://keystore.openbankingtest.org.uk/001580000103UAvAAM/001580000103UAvAAM.jwks';
+const JWKS_URI =
+  'https://keystore.openbankingtest.org.uk/001580000103UAvAAM/001580000103UAvAAM.jwks';
 const CERTIFICATES_PATH = './certificates/';
 
 // Create HTTPS agent
@@ -20,9 +14,9 @@ export function createHttpsAgent() {
   return new https.Agent({
     ca: [
       fs.readFileSync(`${CERTIFICATES_PATH}OB_SandBox_PP_Root CA.cer`),
-      fs.readFileSync(`${CERTIFICATES_PATH}OB_SandBox_PP_Issuing CA.cer`)
+      fs.readFileSync(`${CERTIFICATES_PATH}OB_SandBox_PP_Issuing CA.cer`),
     ],
-    rejectUnauthorized: false
+    rejectUnauthorized: false,
   });
 }
 
@@ -38,15 +32,17 @@ export async function extractPublicKey(signature) {
   const jwks = await fetchJwks(agent);
   const decodedSignature = jose.decodeProtectedHeader(signature);
   const kid = decodedSignature.kid;
-  const matchingKey = jwks.keys.find(key => key.kid === kid);
+  const matchingKey = jwks.keys.find((key) => key.kid === kid);
   const x5u = matchingKey.x5u;
-  const publicKey = (await axios.get(x5u, { responseType: 'text', httpsAgent: agent })).data;
+  const publicKey = (
+    await axios.get(x5u, { responseType: 'text', httpsAgent: agent })
+  ).data;
   return new crypto.X509Certificate(publicKey);
 }
 
 // TODO: add function verify JWS signature + generate noir proofs and circuit inputs + verify noir proofs
 
-// // Verify JWS signature. Could this be done with verifySignature(JWS object) ? 
+// // Verify JWS signature. Could this be done with verifySignature(JWS object) ?
 // function verifySignature(dataToVerify, signature, publicKey) {
 //   const signatureBuffer = Buffer.from(signature.split('.')[2], 'base64url');
 //   return crypto.verify(
