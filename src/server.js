@@ -34,10 +34,6 @@ dotenv.config();
 //const privateKey = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/privkey.pem', 'utf-8');
 //const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/fullchain.pem', 'utf-8');
 //const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/cert.pem', 'utf-8');
-const key = fs.readFileSync('./ssl/privkey.pem', 'utf-8');
-//const cert = fs.readFileSync('./ssl/cert.pem', 'utf-8');
-const cert = fs.readFileSync('./ssl/fullchain.pem', 'utf-8');
-const credentials = { key, cert };
 
 let currentToken;
 
@@ -60,7 +56,9 @@ app.use(express.static('src'));
 let server;
 let port = 80;
 if (process.env.PRODUCTION == 'true') {
-  server = https.createServer(credentials, app);
+  const key = fs.readFileSync('./ssl/privkey.pem', 'utf-8');
+  const cert = fs.readFileSync('./ssl/fullchain.pem', 'utf-8');
+  server = https.createServer({ key, cert }, app);
   port = 443;
 } else {
   server = http.createServer(app);
