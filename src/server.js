@@ -14,12 +14,15 @@ import {
   getCommitmentByHash,
   getAllCommitments,
   purgeCommitments,
-} from './commitmentDb.js';
+  getAllPubkeys,
+  updatePubkeys,
+  purgePubkeys,
+} from './db.js';
 import {
   generatePubkeyParams,
   generateNoirInputs,
 } from '@openbanking-nr/js-inputs';
-import { extractPublicKey, fetchJwks } from './jws.js';
+import { createHttpsAgent, extractPublicKey, fetchJwks } from './jws.js';
 import StateManager from './stateManager.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -301,10 +304,49 @@ app.get('/token-status', (req, res) => {
   });
 });
 
-app.put('/update-pubkey-registry', async () => {
-  const agent = createHttpsAgent();
-  const jwks = await fetchJwks(agent);
-  console.log('JWKS: ', jwks);
+app.get('/pubkeys/purge', async (_, res) => {
+  try {
+    await purgePubkeys();
+    res.status(204).json({ message: 'All pubkeys purged successfully' });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: 'Failed to purge pubkeys', details: error.message });
+  }
+});
+
+app.put('/pubkeys/update', async (_, res) => {
+  try {
+    const agent = createHttpsAgent();
+    const jwks = await fetchJwks(agent);
+    const pubkeys = await getAllPubkeys();
+    const kids = jwks.keys.map((key) => ({ kid: key.kid }));
+    const newPubkeys = kids.filter(
+      ({ kid }) => !pubkeys.find(({ kid: storedKid }) => storedKid === kid)
+    );
+    const revokedPubkeys = pubkeys.filter(
+      (pubkey) => !kids.find(({ kid }) => kid === pubkey.kid)
+    );
+    await updatePubkeys(newPubkeys, revokedPubkeys);
+    res.status(200).send('Pubkey registry updated');
+  } catch (err) {
+    res.status(500).send(err);
+  }
+});
+
+app.put('/update-pubkey-registry', async (_, res) => {
+  try {
+    const agent = createHttpsAgent();
+    const jwks = await fetchJwks(agent);
+    const pubkeys = await getAllPubkeys();
+    console.log('Pubkeys: ', pubkeys);
+    const kids = jwks.keys.map((key) => ({ kid: key.kid }));
+    console.log('Kids: ', kids);
+    await updatePubkeys(kids, []);
+    res.status(200).send('Pubkey registry updated');
+  } catch (err) {
+    res.status(500).send(err);
+  }
 });
 
 // New endpoint to initiate payment after auth
