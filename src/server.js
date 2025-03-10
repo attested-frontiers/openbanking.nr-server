@@ -7,7 +7,6 @@ import fs from 'fs';
 import https from 'https';
 import cors from 'cors';
 import * as jose from 'jose';
-import { randomUUID } from 'crypto';
 import { initializePayment, executeDomesticPayment } from './paymentService.js';
 import {
   createCommitment,
@@ -19,10 +18,18 @@ import {
   purgePubkeys,
 } from './db.js';
 import {
+  addPubkeyHashes,
   generatePubkeyParams,
   generateNoirInputs,
+  getUpdatedPubkeyHashes,
+  revokePubkeyHashes,
 } from '@openbanking-nr/js-inputs';
-import { createHttpsAgent, extractPublicKey, fetchJwks } from './jws.js';
+import {
+  createHttpsAgent,
+  extractPublicKey,
+  fetchJwks,
+  JWKS_URI,
+} from './jws.js';
 import StateManager from './stateManager.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -33,6 +40,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 dotenv.config();
+
+const { ADMIN_SECRET_KEY, ESCROW_CONTRACT_ADDRESS, PXE_URL } = process.env;
 
 //const privateKey = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/privkey.pem', 'utf-8');
 //const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/fullchain.pem', 'utf-8');
@@ -317,20 +326,28 @@ app.get('/pubkeys/purge', async (_, res) => {
 
 app.put('/pubkeys/update', async (_, res) => {
   try {
-    const agent = createHttpsAgent();
-    const jwks = await fetchJwks(agent);
     const pubkeys = await getAllPubkeys();
-    const kids = jwks.keys.map((key) => ({ kid: key.kid }));
-    const newPubkeys = kids.filter(
-      ({ kid }) => !pubkeys.find(({ kid: storedKid }) => storedKid === kid)
-    );
-    const revokedPubkeys = pubkeys.filter(
-      (pubkey) => !kids.find(({ kid }) => kid === pubkey.kid)
+    // TODO: This should really exist inside this repo but importing from circuit repo for times sake
+    const { newPubkeys, revokedPubkeys } = await getUpdatedPubkeyHashes(
+      JWKS_URI,
+      pubkeys
     );
     await updatePubkeys(newPubkeys, revokedPubkeys);
-    res.status(200).send('Pubkey registry updated');
+    await addPubkeyHashes(
+      ADMIN_SECRET_KEY,
+      ESCROW_CONTRACT_ADDRESS,
+      PXE_URL,
+      newPubkeys.map(({ hash }) => hash)
+    );
+    await revokePubkeyHashes(
+      ADMIN_SECRET_KEY,
+      ESCROW_CONTRACT_ADDRESS,
+      PXE_URL,
+      revokedPubkeys.map(({ hash }) => hash)
+    );
+    res.status(200).send('Pubkeys updated');
   } catch (err) {
-    res.status(500).send(err);
+    res.status(500).send(`Error: ${err}`);
   }
 });
 

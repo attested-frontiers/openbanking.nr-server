@@ -5,7 +5,7 @@ import axios from 'axios';
 import * as crypto from 'crypto';
 
 // Constants
-const JWKS_URI =
+export const JWKS_URI =
   'https://keystore.openbankingtest.org.uk/001580000103UAvAAM/001580000103UAvAAM.jwks';
 const CERTIFICATES_PATH = './certificates/';
 

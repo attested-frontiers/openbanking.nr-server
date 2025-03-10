@@ -41,6 +41,9 @@ const Pubkey = sequelize.define('Pubkey', {
     primaryKey: true,
     unique: true,
   },
+  hash: {
+    type: DataTypes.STRING,
+  },
 });
 
 // Sync model with database
@@ -92,7 +95,10 @@ export async function getAllCommitments() {
 export async function getAllPubkeys() {
   try {
     const pubkeys = await Pubkey.findAll();
-    return pubkeys.map((pubkey) => ({ kid: pubkey.dataValues.kid }));
+    return pubkeys.map((pubkey) => ({
+      kid: pubkey.dataValues.kid,
+      hash: pubkey.dataValues.hash,
+    }));
   } catch (error) {
     console.error('Error retrieving all pubkeys:', error);
     throw error;
