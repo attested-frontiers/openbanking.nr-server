@@ -24,7 +24,7 @@ which returns a status according to this iso specification: https://www.iso20022
 
 
 
-This is a sample of the response which contains the payment details showing debtor anmd credit accounts, amount, currency, status , etc: 
+This is a sample of the response which contains the payment details with status of ` "AcceptedSettlementCompleted"` in addition to showing debtor and credit accounts, amount, currency, etc.  
 
 ```
 {
@@ -102,6 +102,8 @@ This describes the practical steps of the function as implemented in  `verifyOBS
 4. fetch the certificate 
 5. Verify the signature using public key, payment data and signature. 
 
+This just confirms there is a signature trail back to the issuingCA which we already know about and trust. 
+
 3. **Certificate verification** 
 
 Although the JWS signature is verified, we still need to be sure the CA that is given to the bank is a trusted CA. We will circle back to the root of trust in section 1. 
@@ -124,10 +126,13 @@ In certificate verification there are always two things we need to check.
 1. There is a signature verification trail back to the Root. Where each entity signs over the public key attesting to its validity. 
 2. A bank's certificate has not been revoked some time between its issuance and now. A solution to this merged as the ocsp protocol which is a fast ping service to check validity of a given certificate. The root ceritificate also signs this certificate. 
 
-Root -> OCSP Correspondor
+OCSP protocol
+
+Root -> OCSP Correspondor -> bank's certificate with `" status: good"`
 
 offering an alternaive path to the root attesting to validity of a certificate. Its real time to the system that uses this endpoint. However the sync is happening on signed timestamps. Here is a response from OCSP service:
 
+```
 ocspResult {
   status: 'good',
   ocspUrl: 'http://ob.trustis.com/ocsp',
@@ -135,8 +140,9 @@ ocspResult {
   nextUpdate: 2025-04-03T15:49:03.000Z,
   thisUpdate: 2025-03-31T15:49:03.000Z
 }
+```
 
 To use this in a smart contract, you will have to check against a timestamp to validate its valid within an acceptable time frame. There is also a signature attestation over this result by the ocsp corresponder certificate. 
 
-To make sure the bank's certificate is still valid and has not been revoked, we can use the ocsp service. We used the [ocsp library](https://github.com/PeculiarVentures/node-ocsp) and the [easy-ocsp](https://github.com/PeculiarVentures/easy-ocsp) library. and obtain valid statuses. 
+In code, We used the [ocsp library](https://github.com/PeculiarVentures/node-ocsp) and the [easy-ocsp](https://github.com/PeculiarVentures/easy-ocsp) library. and obtain valid statuses using each library seperately. 
 
