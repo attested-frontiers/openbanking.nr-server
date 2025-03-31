@@ -40,7 +40,8 @@ This is the server implementation that accompanies the [openbanking.nr](https://
 
     ```
     ngrok http 3000
-    ```  
+    ```
+    tip: run static domain with ngrok by creating ngrok account and obtaining the link from dashboard so you dont have to keep doing step 5 every time you run it. 
 
 
 5. Copy the Forwarding URL from ngrok, appending "/callback" to the end, and paste it into: 
@@ -54,10 +55,14 @@ This is the server implementation that accompanies the [openbanking.nr](https://
     cp .env.example .env
     ``` 
 7. modify .env file with variables obtained earlier
+8. run the server: 
+    ```
+    node src/server.js
+    ```
 
 ## Usage 
 ### Option 1: Scripts 
-Use standalone scripts to test and validate the payment flow:
+Use standalone scripts to test and validate the payment flow to simulate the "Frontend" :
 
 1. **payments.js**: Execute the complete payment initiation flow
 
@@ -111,7 +116,7 @@ Run the server for integration with frontend applications:
 - **GET /commitments**: Lists all commitments
 - **DELETE /commitments**: Purges all commitments
 
-#### Commitment Database 
+#### Commitment Database (for escrow contract commitments)
 The server uses a simple SQLite database (commitments.sqlite) to store and track payment commitments. Each commitment record contains:
 - Hash: Unique identifier for the commitment
 - Amount: Payment amount
