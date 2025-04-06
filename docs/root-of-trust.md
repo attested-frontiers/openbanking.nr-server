@@ -8,7 +8,7 @@ The root of trust is the authority that vouches for the authenticity of the bank
 
 The certificates are located in this link: https://openbanking.atlassian.net/wiki/spaces/DZ/pages/252018873/OB+Root+and+Issuing+Certificates+for+Sandbox
 
-**make sure its the link for sandbox** 
+**Note: this is link for sandbox** 
 
 and you can verify the certificates in our certificates/ folder matches this using the standard openssl command: 
 
@@ -114,13 +114,12 @@ The trust chain is as follows:
 
 OB Root signs -> Issuing CA signs -> Banks's certificate -> payment endpoint 
 
+| Certificate Type | Duration | Issue Date | Expiry Date |
+|------------------|----------|------------|-------------|
+| OB Root CA       | 20 years | Sep 22 11:39:42 2017 GMT | Sep 22 12:09:42 2037 GMT |
+| Issuing CA       | 10 years | Sep 22 12:46:57 2017 GMT | Sep 22 13:16:57 2027 GMT |
+| Bank's Certificate | 1 year | Sep 18 14:20:02 2024 GMT | Oct 18 14:50:02 2025 GMT |
 
-(show diagram add circle back to OB Root for check)
-
-[table]
-OB Root certificate duration: 
-Issuing CA duration 
-bank's certificate duration 
 
 In certificate verification there are always two things we need to check. 
 1. There is a signature verification trail back to the Root. Where each entity signs over the public key attesting to its validity. 
