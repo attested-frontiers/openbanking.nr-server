@@ -75,7 +75,7 @@ Use standalone scripts to test and validate the payment flow to simulate the "Fr
     - Creates a payment consent
     - Generates an authorization URL
     - After user authorization, initiates the payment
-    - Saves results to paymentInitResponse.json and paymentConsentResponse.json
+    - Saves results to paymentInitResponse.json and paymentConsentResponse.json 
 
 
 2. **checkPaymentStatus.js**: Verify the status of an initiated payment
@@ -124,6 +124,37 @@ The server uses a simple SQLite database (commitments.sqlite) to store and track
 - Debtor: Sender information
 - Creditor: Recipient information
 - Timestamp: Creation time
+
+
+## Project Structure
+
+The project is organized with a focus on modularity and separation of concerns. The `src` directory contains the core server implementation:
+
+### src/ Directory
+
+| File | Description |
+| ---- | ----------- |
+| **server.js** | Main application entry point. Initializes Express server, sets up routes, and handles HTTPS configuration. |
+| **paymentService.js** | Implements the core Open Banking payment functionality, including payment initiation, consent management, and JWS signature generation. |
+| **jws.js** | Handles JSON Web Signature (JWS) creation and verification, essential for the Open Banking security protocols. |
+| **commitmentDb.js** | Database interface for storing and retrieving payment commitments, using SQLite as the underlying storage. |
+| **commitments.sqlite** | SQLite database file that stores payment commitment records. |
+| **stateManager.js** | Manages application state, particularly for the OAuth flow and session handling. |
+| **callback.js** | Processes callbacks from the Open Banking authorization server after user consent. |
+| **callback.html** | HTML template displayed to users after the authorization flow completes. |
+
+### scripts/ Directory
+
+The `scripts` directory contains standalone utilities for testing and verification:
+- **payments.js**: Executes the complete payment flow
+- **checkPaymentStatus.js**: Verifies payment status
+- **verifyRevolutJws.js**: Validates JWS signatures and certificates
+
+### certificates/ Directory
+
+Contains the Open Banking certificates necessary for the trust chain:
+- Root CA certificates
+- Issuing CA certificates
 
 ## Notes 
 
