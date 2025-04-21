@@ -16,11 +16,11 @@ jobs:
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ secrets.SERVER_CICD_SSH_KEY }}
 
     - name: Deploy to server
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no ${{ secrets.CICD_USER }}@${{ secrets.CICD_HOST }} << 'EOF'
           cd ${{ secrets.PROJECT_PATH}}
           git pull origin main
           systemctl restart openbanking-api.service
