@@ -15,23 +15,16 @@ import { extractPublicKey } from './jws.js';
 import StateManager from './stateManager.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+dotenv.config();
 
 // i added a comment
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config();
 
-//const privateKey = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/privkey.pem', 'utf-8');
-//const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/fullchain.pem', 'utf-8');
-//const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/cert.pem', 'utf-8');
-const key = fs.readFileSync('./ssl/privkey.pem', 'utf-8');
-//const cert = fs.readFileSync('./ssl/cert.pem', 'utf-8');
-const cert = fs.readFileSync('./ssl/fullchain.pem', 'utf-8');
-const credentials = { key, cert };
 
-let currentToken; 
+let currentToken;
 
 const app = express();
 app.use(express.json());
@@ -52,10 +45,14 @@ app.use(express.static('src'));
 let server;
 let port = 80;
 if (process.env.PRODUCTION == 'true') {
-	server = https.createServer(credentials, app);
-	port = 443;
+    const sslPath = `etc/letsencrypt/live/${process.env.SSL_DOMAIN}`;
+    const key = fs.readFileSync(`${sslPath}/privkey.pem`, 'utf-8');
+    const cert = fs.readFileSync(`${sslPath}/fullchain.pem`, 'utf-8');
+    const credentials = { key, cert };
+    server = https.createServer(credentials, app);
+    port = 443;
 } else {
-	server = http.createServer(app);
+    server = http.createServer(app);
 }
 // Create a WebSocket server that shares the same HTTP server
 const wss = new WebSocketServer({ server });
@@ -134,15 +131,15 @@ app.post('/commitment', async (req, res) => {
     try {
         // const { hash, accountNumber, sortCode, amount, salt } = req.body;
         const { commitment, sortCode } = req.body;
-        await createCommitment({ 
+        await createCommitment({
             commitment,
             sortCode
         });
         res.status(201).send({ message: "Commitment created successfully" });
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Failed to create commitment', 
-            details: error.message 
+        res.status(500).json({
+            error: 'Failed to create commitment',
+            details: error.message
         });
     }
 });
@@ -156,9 +153,9 @@ app.get('/commitment/:hash', async (req, res) => {
         }
         res.json(commitment);
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Failed to retrieve commitment', 
-            details: error.message 
+        res.status(500).json({
+            error: 'Failed to retrieve commitment',
+            details: error.message
         });
     }
 });
@@ -170,9 +167,9 @@ app.get('/commitments', async (_, res) => {
         console.log("commitments", commitments);
         res.json(commitments);
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Failed to retrieve commitments', 
-            details: error.message 
+        res.status(500).json({
+            error: 'Failed to retrieve commitments',
+            details: error.message
         });
     }
 });
@@ -193,22 +190,15 @@ app.get('/callback', async (req, res) => {
         query: req.query,
         headers: req.headers
     });
-    // console.log("a", req.query("code"));
-    // console.log("b", req.query("state"));
-    // console.log("c", req.query("id_token"));
-    // console.log('Code:', params.get('code'));
-    // console.log('State:', params.get('state'));
-    // console.log('ID Token:', params.get('id_token'));
-    //res.status(200).json({ message: 'Callback received successfully' });
     res.sendFile('callback.html', { root: 'src' });
-    });
+});
 
 
 
 // Process the auth code
 app.get('/process-auth', async (req, res) => {
     const { code, id_token, state } = req.query;
-    
+
     console.log('\n=== Authorization Data ===');
     console.log('Code:', code);
     console.log('ID Token:', id_token);
@@ -227,25 +217,25 @@ app.get('/process-auth', async (req, res) => {
         currentToken = tokenResponse;
         console.log('Token stored successfully');
         console.log('=====================\n');
-        
+
         // Send WebSocket update for successful authorization
         broadcast({ message: 'Authorization successful', token: tokenResponse });
 
         // Retrieve the consentId and paymentData using the state
         const stateData = stateManager.get(state);
         if (!stateData) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Invalid or expired state',
                 message: 'Please reinitiate the payment flow'
             });
         }
-        
+
         const { consentId, paymentData } = stateData;
         console.log("ConsentId:", consentId);
         console.log("PaymentData:", paymentData);
 
         const paymentResponse = await executeDomesticPayment(paymentData, consentId, tokenResponse.access_token);
-        
+
         res.json(paymentResponse);
         // Send WebSocket update
         broadcast({ message: 'Payment initiated', paymentResponse });
@@ -253,11 +243,11 @@ app.get('/process-auth', async (req, res) => {
     } catch (error) {
         console.error('Token exchange error:', error);
         broadcast({ message: 'Payment failed', error: error.message });
-        res.status(500).json({ 
+        res.status(500).json({
             error: `Failed to exchange code for token: ${error.message}`,
             details: error.response?.data
         });
-    
+
     }
 });
 
@@ -265,9 +255,9 @@ app.get('/process-auth', async (req, res) => {
 app.get('/token', (req, res) => {
     const { state } = req.params;
     console.log('Retrieving token');
-    
+
     if (!currentToken) {
-        return res.status(404).json({ 
+        return res.status(404).json({
             error: 'Token not found',
             message: `No token found for state: ${state}`
         });
@@ -292,7 +282,7 @@ app.post('/execute-payment', async (req, res) => {
         const { paymentData, consentId } = req.body;
         const tokenData = currentToken; // Assuming token is already stored
         const paymentResponse = await executeDomesticPayment(paymentData, consentId, tokenData.access_token);
-        
+
         res.json(paymentResponse);
 
     } catch (error) {
@@ -347,11 +337,12 @@ app.post('/extract-public-key', async (req, res) => {
         }
         const publicKeyCert = await extractPublicKey(signature);
 
-        res.json({ publicKey: generatePubkeyParams(publicKeyCert.publicKey) });    } catch (error) {
+        res.json({ publicKey: generatePubkeyParams(publicKeyCert.publicKey) });
+    } catch (error) {
         console.error('Error extracting public key:', error);
         res.status(500).json({ error: error.message });
     }
-}); 
+});
 
 // POST endpoint to generate Noir inputs
 app.post('/noir-inputs', async (req, res) => {
