@@ -45,7 +45,7 @@ app.use(express.static('src'));
 let server;
 let port = 80;
 if (process.env.PRODUCTION == 'true') {
-    const sslPath = `etc/letsencrypt/live/${process.env.SSL_DOMAIN}`;
+    const sslPath = `/etc/letsencrypt/live/${process.env.SSL_DOMAIN}`;
     const key = fs.readFileSync(`${sslPath}/privkey.pem`, 'utf-8');
     const cert = fs.readFileSync(`${sslPath}/fullchain.pem`, 'utf-8');
     const credentials = { key, cert };
