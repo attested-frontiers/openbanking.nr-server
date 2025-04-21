@@ -81,7 +81,7 @@ function broadcast(data) {
 
 // Simple ping endpoint to check if the server is alive
 app.get('/ping', (req, res) => {
-    res.json({ message: 'pong' });
+    res.json({ message: 'pong1' });
 });
 
 // Health check endpoint to check if the server is healthy
