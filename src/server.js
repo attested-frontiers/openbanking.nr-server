@@ -310,8 +310,8 @@ async function exchangeCodeForToken(code) {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
             httpsAgent: new https.Agent({
-                cert: fs.readFileSync('./keys/transport.pem'),
-                key: fs.readFileSync('./keys/private.key'),
+                // cert: fs.readFileSync('./keys/transport.pem'),
+                // key: fs.readFileSync('./keys/private.key'),
                 rejectUnauthorized: false
             })
         });
