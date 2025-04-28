@@ -33,19 +33,15 @@ import {
 import StateManager from './stateManager.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+dotenv.config();
 
 // i added a comment
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config();
 
 const { ADMIN_SECRET_KEY, ESCROW_CONTRACT_ADDRESS, PXE_URL } = process.env;
-
-//const privateKey = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/privkey.pem', 'utf-8');
-//const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/fullchain.pem', 'utf-8');
-//const certificate = fs.readFileSync('/etc/letsencrypt/live/api.openbanking.mach34.space/cert.pem', 'utf-8');
 
 let currentToken;
 
@@ -68,9 +64,11 @@ app.use(express.static('src'));
 let server;
 let port = 80;
 if (process.env.PRODUCTION == 'true') {
-  const key = fs.readFileSync('./ssl/privkey.pem', 'utf-8');
-  const cert = fs.readFileSync('./ssl/fullchain.pem', 'utf-8');
-  server = https.createServer({ key, cert }, app);
+  const sslPath = `/etc/letsencrypt/live/${process.env.SSL_DOMAIN}`;
+  const key = fs.readFileSync(`${sslPath}/privkey.pem`, 'utf-8');
+  const cert = fs.readFileSync(`${sslPath}/fullchain.pem`, 'utf-8');
+  const credentials = { key, cert };
+  server = https.createServer(credentials, app);
   port = 443;
 } else {
   server = http.createServer(app);
@@ -218,13 +216,6 @@ app.get('/callback', async (req, res) => {
     query: req.query,
     headers: req.headers,
   });
-  // console.log("a", req.query("code"));
-  // console.log("b", req.query("state"));
-  // console.log("c", req.query("id_token"));
-  // console.log('Code:', params.get('code'));
-  // console.log('State:', params.get('state'));
-  // console.log('ID Token:', params.get('id_token'));
-  //res.status(200).json({ message: 'Callback received successfully' });
   res.sendFile('callback.html', { root: 'src' });
 });
 
