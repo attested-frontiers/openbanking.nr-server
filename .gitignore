@@ -70,4 +70,4 @@ jwt_token_step3.txt
 !.env.example
 
 data
-commitments.sqlite
+db.sqlite

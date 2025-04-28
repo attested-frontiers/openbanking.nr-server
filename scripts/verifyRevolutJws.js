@@ -2,17 +2,10 @@ import * as jose from 'jose';
 import fs from 'fs';
 import https from 'https';
 import axios from 'axios';
-import ocsp from'ocsp'; 
+import ocsp from 'ocsp';
 import forge from 'node-forge';
 import * as crypto from 'crypto';
-import { getCertStatus , getRawOCSPResponse} from 'easy-ocsp';
-import { Noir } from "@noir-lang/noir_js";
-import {  
-  OpenBankingDomesticCircuit,
-  decodeNoirOutputs,
-  generateNoirInputs, 
-} from "@openbanking.nr/js-inputs";
-
+import { getCertStatus, getRawOCSPResponse } from 'easy-ocsp';
 
 /******************************************************************************
  * CONFIGURATION
@@ -29,157 +22,90 @@ const CONFIG = {
  ******************************************************************************/
 
 function extractCAIssuerURL(infoAccess) {
-    // Split the string by newline and find the CA Issuers line
-    const lines = infoAccess.split('\n');
-    const caIssuerLine = lines.find(line => line.includes('CA Issuers - URI:'));
-    
-    if (caIssuerLine) {
-        // Extract the URL after "CA Issuers - URI:"
-        return caIssuerLine.split('CA Issuers - URI:')[1].trim();
-    }
-    
-    return null;
+  // Split the string by newline and find the CA Issuers line
+  const lines = infoAccess.split('\n');
+  const caIssuerLine = lines.find((line) => line.includes('CA Issuers - URI:'));
+
+  if (caIssuerLine) {
+    // Extract the URL after "CA Issuers - URI:"
+    return caIssuerLine.split('CA Issuers - URI:')[1].trim();
+  }
+
+  return null;
 }
 
-// function extractTBSCertificate(cert) {
-//     const certRaw = cert.raw;
-//     const tbsCertificate = certRaw.slice(4, certRaw.length - 256); // Adjust slice indices as needed
-//     return tbsCertificate;
-// }
-
-async function fetchJWKS(jwksUri, agent) {
-  const jwksResponse = await axios.get(jwksUri, { httpsAgent: agent });
-  return jwksResponse.data;
+function extractTBSCertificate(cert) {
+  const certRaw = cert.raw;
+  const tbsCertificate = certRaw.slice(4, certRaw.length - 256); // Adjust slice indices as needed
+  return tbsCertificate;
 }
 
-async function loadResponseFromFile(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-
-/******************************************************************************
- * CERTIFICATE FUNCTIONS
- ******************************************************************************/
-
-// Compare the issuing CA certificate in the JWS with the one from the OB website we have stored in /certificates. They should match.
 async function compareIssuingCACertificates(onlineCertURL) {
-    try {
-        // Certificates come from this link: https://openbanking.atlassian.net/wiki/spaces/DZ/pages/252018873/OB+Root+and+Issuing+Certificates+for+Sandbox
-        const storedCertData = fs.readFileSync("../certificates/OB_SandBox_PP_Issuing CA.cer");
-        const storedCert = new crypto.X509Certificate(storedCertData);
-
-        // Fetch the online certificate
-        const onlineCertResponse = await axios.get(onlineCertURL, {
-            responseType: 'arraybuffer'
-        });
-        const onlineCert = new crypto.X509Certificate(onlineCertResponse.data);
-
-        // Compare critical certificate properties
-        const comparisonResults = {
-            subject: storedCert.subject === onlineCert.subject,
-            issuer: storedCert.issuer === onlineCert.issuer,
-            serialNumber: storedCert.serialNumber === onlineCert.serialNumber,
-            validFrom: storedCert.validFrom === onlineCert.validFrom,
-            validTo: storedCert.validTo === onlineCert.validTo,
-            // Compare raw signatures
-            signatureMatch: Buffer.from(storedCert.raw).equals(Buffer.from(onlineCert.raw)),
-            rawMatch: Buffer.from(storedCert.raw).equals(Buffer.from(onlineCert.raw))
-
-            // Compare public keys
-            //publicKeyMatch: Buffer.from(storedCert.publicKey).equals(Buffer.from(onlineCert.publicKey))
-        };
-
-        // Detailed comparison information
-        console.log('Certificate Comparison Results:', comparisonResults);
-
-        // Log detailed information if certificates don't match
-        if (!Object.values(comparisonResults).every(result => result === true)) {
-            console.log('\nDetailed Certificate Information:');
-            console.log('\nStored Certificate:');
-            console.log({
-                subject: storedCert.subject,
-                issuer: storedCert.issuer,
-                serialNumber: storedCert.serialNumber,
-                validFrom: storedCert.validFrom,
-                validTo: storedCert.validTo
-            });
-
-            console.log('\nOnline Certificate:');
-            console.log({
-                subject: onlineCert.subject,
-                issuer: onlineCert.issuer,
-                serialNumber: onlineCert.serialNumber,
-                validFrom: onlineCert.validFrom,
-                validTo: onlineCert.validTo
-            });
-        }
-
-        // Return true if all comparisons pass
-        return Object.values(comparisonResults).every(result => result === true);
-
-    } catch (error) {
-        console.error('Error comparing certificates:', error);
-        throw error;
-    }
-}
-
-async function extractCertificateFromResponse(response, jwks) {
-  const responseInfo = await extractResponseInfo(response, jwks);
-  return new crypto.X509Certificate(responseInfo.publicKey);
-}
-
-async function getIssuerCertificate(cert) {
-  const certURL = extractCAIssuerURL(cert.infoAccess);
-  const issuerCACertRaw = await axios.get(certURL, {
-    responseType: 'arraybuffer'
-  });
-  return new crypto.X509Certificate(issuerCACertRaw.data);
-}
-
-// Function to verify that cert is signed by issuerCACert
-function verifyCertificate(cert, issuerCACert) {
   try {
-      // Extract the issuer's public key
-      const issuerPublicKey = issuerCACert.publicKey;
+    // Read the stored certificate
+    const storedCertData = fs.readFileSync(
+      '../certificates/OB_SandBox_PP_Issuing CA.cer'
+    );
+    const storedCert = new crypto.X509Certificate(storedCertData);
 
-      // Verify the signature
-      const isValid = cert.verify(issuerPublicKey);
+    // Fetch the online certificate
+    const onlineCertResponse = await axios.get(onlineCertURL, {
+      responseType: 'arraybuffer',
+    });
+    const onlineCert = new crypto.X509Certificate(onlineCertResponse.data);
 
-      console.log(`Certificate signature is valid: ${isValid}`);
-      return isValid;
+    // Compare critical certificate properties
+    const comparisonResults = {
+      subject: storedCert.subject === onlineCert.subject,
+      issuer: storedCert.issuer === onlineCert.issuer,
+      serialNumber: storedCert.serialNumber === onlineCert.serialNumber,
+      validFrom: storedCert.validFrom === onlineCert.validFrom,
+      validTo: storedCert.validTo === onlineCert.validTo,
+      // Compare raw signatures
+      signatureMatch: Buffer.from(storedCert.raw).equals(
+        Buffer.from(onlineCert.raw)
+      ),
+      rawMatch: Buffer.from(storedCert.raw).equals(Buffer.from(onlineCert.raw)),
+
+      // Compare public keys
+      //publicKeyMatch: Buffer.from(storedCert.publicKey).equals(Buffer.from(onlineCert.publicKey))
+    };
+
+    // Detailed comparison information
+    console.log('Certificate Comparison Results:', comparisonResults);
+
+    // Log detailed information if certificates don't match
+    if (!Object.values(comparisonResults).every((result) => result === true)) {
+      console.log('\nDetailed Certificate Information:');
+      console.log('\nStored Certificate:');
+      console.log({
+        subject: storedCert.subject,
+        issuer: storedCert.issuer,
+        serialNumber: storedCert.serialNumber,
+        validFrom: storedCert.validFrom,
+        validTo: storedCert.validTo,
+      });
+
+      console.log('\nOnline Certificate:');
+      console.log({
+        subject: onlineCert.subject,
+        issuer: onlineCert.issuer,
+        serialNumber: onlineCert.serialNumber,
+        validFrom: onlineCert.validFrom,
+        validTo: onlineCert.validTo,
+      });
+    }
+
+    // Return true if all comparisons pass
+    return Object.values(comparisonResults).every((result) => result === true);
   } catch (error) {
-      console.error('Error during verification:', error);
-      return false;
+    console.error('Error comparing certificates:', error);
+    throw error;
   }
 }
 
-// 
-function verifySignatureWithLowLevelCrypto(cert, issuerCACert) {
-  const derString = cert.raw.toString('binary');
-  const forgeBuffer = forge.util.createBuffer(derString);
-  const asn1Obj = forge.asn1.fromDer(forgeBuffer);
-  const certificate = forge.pki.certificateFromAsn1(asn1Obj);
-  const tbsDer = forge.asn1.toDer(certificate.tbsCertificate).getBytes();
-  const tbsBuffer = Buffer.from(tbsDer, 'binary');
-  const certSignatureBuffer = Buffer.from(certificate.signature, 'binary');
-  const issuerPublicKey = issuerCACert.publicKey;
-  
-  return crypto.verify(
-    "RSA-SHA256",
-    tbsBuffer,
-    issuerPublicKey,
-    certSignatureBuffer
-  );
-}
-
-
-/******************************************************************************
- * JWS VERIFICATION FUNCTIONS
- ******************************************************************************/
-
 // extract info from the JWS response and lookup the public key in the JWKS
 async function extractResponseInfo(response, jwks) {
-
   // Extract data, header, and signature from the response
   const data = response.data;
   const header = response.headers;
@@ -195,175 +121,290 @@ async function extractResponseInfo(response, jwks) {
   console.log('kid:', kid);
 
   // Find the matching key in JWKS
-  const matchingKey = jwks.keys.find(key => key.kid === kid);
+  const matchingKey = jwks.keys.find((key) => key.kid === kid);
   if (!matchingKey) {
-      throw new Error(`No matching key found for kid: ${kid}`);
+    throw new Error(`No matching key found for kid: ${kid}`);
   }
   const x5u = matchingKey.x5u;
   console.log('matchingKey:', matchingKey);
   console.log('x5u:', x5u);
 
   // Fetch the public key
-  const publicKey = (await axios.get(x5u, { responseType: 'text', httpsAgent: CONFIG.agent })).data;
+  const publicKey = (
+    await axios.get(x5u, { responseType: 'text', httpsAgent: agent })
+  ).data;
   console.log('publicKey:', publicKey);
 
   return {
-      publicKey: publicKey,
-      data: data,
-      header: header,
-      signature: signature,
-      decodedSignature: decodedSignature,
+    publicKey: publicKey,
+    data: data,
+    header: header,
+    signature: signature,
+    decodedSignature: decodedSignature,
   };
 }
 
 
 async function verifyOBSignedResponse(response, jwks) {
-
-  // get the data, header and signature from the response 
+  // get the data, header and signature from the response
   const data = response.data;
-  const header = response.headers; 
+  const header = response.headers;
   const signature = response.headers['x-jws-signature'];
-  console.log('data1:', data); 
-  console.log('header2:', header); 
-  console.log('signature3:', signature); 
+  console.log('data1:', data);
+  console.log('header2:', header);
+  console.log('signature3:', signature);
 
-  // retrieve kid identifier from the signature 
+  // retrieve kid identifier from the signature
   const decodedSignature = jose.decodeProtectedHeader(signature);
-  const kid = decodedSignature.kid; 
-  console.log('deocdedSignature: ', decodedSignature); 
+  const kid = decodedSignature.kid;
+  console.log('deocdedSignature: ', decodedSignature);
   console.log('kid', kid);
 
-  // check the jwks for corresponding entry for the kid 
-  const matchingKey = jwks.keys.find(key => key.kid === kid);
+  // check the jwks for corresponding entry for the kid
+  const matchingKey = jwks.keys.find((key) => key.kid === kid);
   const x5u = matchingKey.x5u;
-  console.log('matching keys', matchingKey); 
-  console.log('x5u', x5u); 
+  console.log('matching keys', matchingKey);
+  console.log('x5u', x5u);
 
-  // fetch the .pem public key corresponding to signature 
-  const publicKey = (await axios.get(x5u, { responseType: 'text', httpsAgent: CONFIG.agent })).data;
+  // fetch the .pem public key corresponding to signature
+  const publicKey = (
+    await axios.get(x5u, { responseType: 'text', httpsAgent: agent })
+  ).data;
   console.log('public key', publicKey);
 
-  // prepare data for verification 
-  const encodedHeader = Buffer.from(JSON.stringify(decodedSignature)).toString('base64url');
+  // prepare data for verification
+  const encodedHeader = Buffer.from(JSON.stringify(decodedSignature)).toString(
+    'base64url'
+  );
   const rawPayload = Buffer.from(JSON.stringify(data));
   const dataToVerify = `${encodedHeader}.${rawPayload}`;
   const signatureBuffer = Buffer.from(signature.split('.')[2], 'base64url');
 
-  console.log('dataToVerify', dataToVerify);   
+  console.log('dataToVerify', dataToVerify);
 
-  // Verify the signature using crypto library 
+  // Verify the signature using crypto library
   const isVerified = crypto.verify(
     'sha256',
     Buffer.from(dataToVerify),
     {
-        key: publicKey,
-        padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
-        saltLength: 32
+      key: publicKey,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+      saltLength: 32,
     },
     signatureBuffer
   );
   console.log('JWS verification result with crypto library:', isVerified);
 
   // OPTIONAL: verify the signature using the openbanking.nr library if you are working with noir circuits 
-  let { publicKey: certd } = new crypto.X509Certificate(publicKey);
-  console.log("public key", publicKey)
-  const inputs = generateNoirInputs(dataToVerify, signatureBuffer.toString('hex'), certd); 
-  const noir = new Noir(OpenBankingDomesticCircuit)
-  const result = await noir.execute({params: inputs });
-  const outputs = decodeNoirOutputs(result.returnValue);
-  console.log('JWS verification with Noir cicrcuits', outputs);
+  // let { publicKey: certd } = new crypto.X509Certificate(publicKey);
+  // console.log("public key", publicKey)
+  // const inputs = generateNoirInputs(dataToVerify, signatureBuffer.toString('hex'), certd); 
+  // const noir = new Noir(OpenBankingDomesticCircuit)
+  // const result = await noir.execute({params: inputs });
+  // const outputs = decodeNoirOutputs(result.returnValue);
+  // console.log('JWS verification with Noir cicrcuits', outputs);
 
   return isVerified;
 }
 
+// ########   1. jws verification ##############
 
-/******************************************************************************
- * OCSP VERIFICATION FUNCTIONS
- ******************************************************************************/
-async function verifyOCSPWithEasyLib(cert) {
+// 1.1 using crypto library to verify the signature
+
+// sandbox URI; source:
+const JWKS_URI =
+  'https://keystore.openbankingtest.org.uk/001580000103UAvAAM/001580000103UAvAAM.jwks';
+
+//source of cerritifates: https://openbanking.atlassian.net/wiki/spaces/DZ/pages/80544075/OB+Root+and+Issuing+Certificates+for+Production
+// HTTPS agent to fetch the JWKS. i believe this should be our certificate. will clean up later
+const agent = new https.Agent({
+  ca: [
+    fs.readFileSync('../certificates/OB_SandBox_PP_Root CA.cer'),
+    fs.readFileSync('../certificates/OB_SandBox_PP_Issuing CA.cer'),
+  ],
+  rejectUnauthorized: false, // Temporarily disable SSL verification until the issue is fixed
+});
+
+// Fetch JWKS
+const jwksResponse = await axios.get(JWKS_URI, { httpsAgent: agent });
+const jwks = jwksResponse.data;
+console.log('jwks', jwks);
+
+// response data we want to verify. TODO: make it input variable in future to dynamicaly verify responses from revolut
+const consentResponse = JSON.parse(
+  fs.readFileSync('paymentStatusResponse.json', 'utf8')
+);
+
+// verify the signature using the public key
+//const isJWSVerified = await verifyOBSignedResponse(consentResponse, jwks);
+const isJWSVerified = await verifyOBSignedResponse(consentResponse, jwks);
+console.log('isJWSVerified', isJWSVerified);
+
+// ########   2. certificate verification ##############
+
+// 2.1. parse certificate and confirm issuer CA certificate
+
+// cert is the bank's certificate
+
+// extrtact info needed for noir verification & certificate verification
+const reponseInfo = await extractResponseInfo(consentResponse, jwks);
+const publicKey = reponseInfo.publicKey;
+
+const cert = new crypto.X509Certificate(publicKey);
+// Print ALL available information
+console.log('Full Certificate Details:');
+console.log(JSON.stringify(cert.toJSON(), null, 2));
+// You can also access specific fields:
+console.log('\nKey Properties:');
+console.log({
+  subject: cert.subject,
+  issuer: cert.issuer,
+  validFrom: cert.validFrom,
+  validTo: cert.validTo,
+  serialNumber: cert.serialNumber,
+  keyUsage: cert.keyUsage,
+  extensions: cert.extensions,
+  publicKey: cert.publicKey,
+  signature: cert.raw,
+  isCA: cert.ca,
+  infoAccess: cert.infoAccess,
+  subjectAltName: cert.subjectAltName,
+});
+
+// check if the cert issuer CA is the same as the one we have stored from OB website.
+// source: https://openbanking.atlassian.net/wiki/spaces/DZ/pages/80544075/OB+Root+and+Issuing+Certificates+for+Production
+const certURL = extractCAIssuerURL(cert.infoAccess);
+compareIssuingCACertificates(certURL)
+  .then((matched) => {
+    console.log('Certificates match:', matched);
+  })
+  .catch((error) => {
+    console.error('Error:', error);
+  });
+
+const issuerCACertRaw = await axios.get(certURL, {
+  responseType: 'arraybuffer', // Important to get binary data
+});
+// Convert to certificate object
+const issuerCACert = new crypto.X509Certificate(issuerCACertRaw.data);
+console.log('Issuing CA Certificate Details:');
+console.log({
+  subject: issuerCACert.subject,
+  issuer: issuerCACert.issuer,
+  issuerCertificate: issuerCACert.issuerCertificate,
+  validFrom: issuerCACert.validFrom,
+  validTo: issuerCACert.validTo,
+  serialNumber: issuerCACert.serialNumber,
+  keyUsage: issuerCACert.keyUsage,
+  extensions: issuerCACert.extensions,
+  publicKey: issuerCACert.publicKey,
+  signature: issuerCACert.raw,
+  isCA: issuerCACert.ca,
+  infoAccess: issuerCACert.infoAccess,
+  subjectAltName: issuerCACert.subjectAltName,
+});
+
+// ########   2.2. verify signature of the issuing CA certificate ##############
+
+// Function to verify that cert is signed by issuerCACert
+function verifyCertificate(cert, issuerCACert) {
   try {
-    const ocspResult = await getCertStatus(cert);
-    return {
-      status: ocspResult.status,
-      rawResponse: (await getRawOCSPResponse(cert)).rawResponse
-    };
+    // Extract the issuer's public key
+    const issuerPublicKey = issuerCACert.publicKey;
+
+    // Verify the signature
+    const isValid = cert.verify(issuerPublicKey);
+
+    console.log(`Certificate signature is valid: ${isValid}`);
+    return isValid;
   } catch (error) {
-    console.error("OCSP verification error:", error);
-    return { status: "error", error };
+    console.error('Error during verification:', error);
+    return false;
   }
 }
 
-// /**
-//  * Verify certificate status using OCSP library
-//  * @param {X509Certificate} cert - The certificate to check
-//  * @param {X509Certificate} issuerCACert - The issuer's certificate
-//  * @returns {Promise<object>} - Full verification results including status and raw data
-//  */
-async function verifyOCSPWithOcspLib(cert, issuerCACert) {
-  try {
-    // 1. Extract OCSP URI from certificate
-    const uri = cert.infoAccess
-      .split('\n')
-      .find(line => line.startsWith('OCSP - URI:'))
-      ?.split('URI:')[1]
-      ?.trim();
+const isCertVerified = verifyCertificate(cert, issuerCACert);
 
-    if (!uri) {
-      throw new Error('No OCSP URI found in certificate');
-    }
-    
-    // 2. Generate OCSP request
-    const request = ocsp.request.generate(cert, issuerCACert);
+// Function to manually verify a certificate's signature with low level crypto library
 
-    // 3. Get raw OCSP response
-    const raw = await new Promise((resolve, reject) => {
-      ocsp.utils.getResponse(uri, request.data, (err, response) => {
-        if (err) reject(err);
-        else resolve(response);
-      });
-    });
+// Convert the raw DER (a Buffer) into a binary string
+const derString = cert.raw.toString('binary');
 
-    // 4. Verify OCSP response
-    const verificationResult = await new Promise((resolve, reject) => {
-      ocsp.verify({
-        request,
-        response: raw
-      }, (err, result) => {
-        if (err) reject(err);
-        else resolve(result);
-      });
-    });
+// Create a forge ByteBuffer from the binary string
+const forgeBuffer = forge.util.createBuffer(derString);
 
-    console.log('verificationResult', verificationResult); 
+// Decode the DER using node-forge's asn1 module
+const asn1Obj = forge.asn1.fromDer(forgeBuffer);
+// Log the entire ASN.1 structure
+//console.log(JSON.stringify(asn1Obj, null, 2));
 
-    // 5. Parse the OCSP response for logging
-    const parsedResponse = ocsp.utils.parseResponse(raw);
-    console.log('parsedResponse', parsedResponse);
-    const responseValue = parsedResponse.value;
-    console.log('responseValue', responseValue);
-    //const responderPublicKey = parsedResponse.certs[0].tbsCertificate.subjectPublicKeyInfo;
-    //console.log('responderPublicKey', responderPublicKey);
-    //console.log("Signature Algorithm:", responseValue.signatureAlgorithm.algorithm.join('.'));
-    //console.log("Signature:", responseValue.signature.data);
-    const producedAt =  new Date(responseValue.tbsResponseData.producedAt);
-    const thisUpdate = new Date(responseValue.tbsResponseData.responses[0].thisUpdate);
-    const nextUpdate = new Date(responseValue.tbsResponseData.responses[0].nextUpdate);
-    console.log("Produced At:", producedAt);
-    console.log("This Update:", thisUpdate);
-    console.log("Next Update:", nextUpdate);
-    //console.log("Raw TBS:", raw.slice(parsedResponse.start, parsedResponse.end));
-    console.log("Certificate Status:", responseValue.tbsResponseData.responses[0].certStatus);
+// Parse the ASN.1 object into a forge certificate object
+const certificate = forge.pki.certificateFromAsn1(asn1Obj);
 
-    return {
-      verified:verificationResult,
-      producedAt:producedAt, 
-      thisUpdate:thisUpdate, 
-      nextUpdate:nextUpdate
-    }
+const tbsDer = forge.asn1.toDer(certificate.tbsCertificate).getBytes();
+const tbsBuffer = Buffer.from(tbsDer, 'binary');
 
-  } catch (error) {
-    console.error("OCSP verification error", error); 
+// Convert the signature (currently a binary string) to a Buffer
+const certSignatureBuffer = Buffer.from(certificate.signature, 'binary');
+
+const issuerPublicKey = issuerCACert.publicKey;
+
+//const certSignatureAlgorithm = certificate.signatureAlgorithm.algorithm;
+
+// Now log certificate properties in a readable format:
+//console.log('Subject:', certificate.subject.attributes);
+//console.log('Issuer:', certificate.issuer.attributes);
+//console.log('Valid From:', certificate.validity.notBefoe);
+//console.log('Valid To:', certificate.validity.notAfter);
+//console.log('Serial Number:', certificate.serialNumber);
+// console.log('Signature Algorithm OID:', certificate.signatureOid);
+// console.log('Signature (hex):', certificate.signature.toString('hex'));
+
+// Verify the signature using the issuer's public key
+const isCertValid = crypto.verify(
+  'RSA-SHA256', // Algorithm used to sign
+  tbsBuffer, // Data that was signed
+  issuerPublicKey, // Issuer's public key
+  certSignatureBuffer // Signature to verify
+);
+
+console.log(
+  `\nCertificate signature with low level crypto library is valid: ${isCertValid}`
+);
+
+// ########   3. check ocsp response for the cert  ##############
+
+// ********** 3.1 using the ocsp library to verify the certificate **********
+
+// Simple ocsp check
+ocsp.check(
+  {
+    cert: cert,
+    issuer: issuerCACert,
+  },
+  function (err, res) {
+    if (err) throw err;
+
+    // res will contain the verified response
+    // The raw response can be accessed and stored
+    console.log('OCSP response', res.response); // Raw ASN.1 encoded response
+    console.log('OCSP tbsResponseData', res.tbsResponseData); // The signed response data
+    console.log('OCSP signatureAlgorithm', res.signatureAlgorithm);
+    console.log('OCSP signature', res.signature);
   }
+);
+
+// Obtain OCSP signature
+const request = ocsp.request.generate(cert, issuerCACert);
+// Parse infoAccess string to get OCSP URI
+const uri = cert.infoAccess
+  .split('\n')
+  .find((line) => line.startsWith('OCSP - URI:'))
+  ?.split('URI:')[1]
+  ?.trim();
+
+if (!uri) {
+  throw new Error('No OCSP URI found in certificate');
 }
 
   
@@ -415,6 +456,14 @@ async function performFullVerification(responseFilePath) {
   };
 }
 
+// Get the raw OCSP response to observe the signature
+const { rawResponse } = await getRawOCSPResponse(cert);
+console.log('Raw OCSP Response:', rawResponse);
+console.log('Raw OCSP Response (Hex):', rawResponse.toString('hex'));
+
+// will need to use the pki library to verify the signature
+
+// ########   4. using the ob Noir circuit js api to verify the jws  ##############
 
 /******************************************************************************
  * MAIN FUNCTION
